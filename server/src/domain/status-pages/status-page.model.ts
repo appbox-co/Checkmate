@@ -6,6 +6,7 @@ import {
 	StatusPageThemeModes,
 	StatusPageThemes,
 	StatusPageTypes,
+	StatusUpdateStates,
 } from "@/domain/status-pages/status-page.type.js";
 
 type StatusPageDocumentBase = Omit<
@@ -34,8 +35,23 @@ const logoSchema = new Schema<StatusPageLogoDocument>(
 	{ _id: false }
 );
 
+const updateSchema = new Schema(
+	{
+		id: { type: String, required: true },
+		title: { type: String, required: true, maxlength: 160 },
+		body: { type: String, required: true, maxlength: 5000 },
+		status: { type: String, enum: StatusUpdateStates, required: true },
+		pinned: { type: Boolean, default: false },
+		author: { type: String, required: true, maxlength: 160 },
+		createdAt: { type: String, required: true },
+		updatedAt: { type: String, required: true },
+	},
+	{ _id: false }
+);
+
 const StatusPageSchema = new Schema<StatusPageDocument>(
 	{
+		updates: { type: [updateSchema], default: [] },
 		userId: {
 			type: Schema.Types.ObjectId,
 			ref: "User",
@@ -53,6 +69,7 @@ const StatusPageSchema = new Schema<StatusPageDocument>(
 			required: true,
 			default: ["uptime"],
 			enum: StatusPageTypes,
+			StatusUpdateStates,
 		},
 		companyName: {
 			type: String,

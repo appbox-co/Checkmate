@@ -49,7 +49,38 @@ export const resolveStatusPageThemeMode = (
 	STATUS_PAGE_THEME_MODES.find((m) => m === value) ?? DEFAULT_STATUS_PAGE_THEME_MODE;
 export const PUBLIC_STATUS_PAGE_PREFIX = "/status/public";
 
+export const STATUS_UPDATE_STATES = [
+	"announcement",
+	"investigating",
+	"identified",
+	"monitoring",
+	"resolved",
+] as const;
+export type StatusUpdateState = (typeof STATUS_UPDATE_STATES)[number];
+export interface StatusPageUpdateInput {
+	title: string;
+	body: string;
+	status: StatusUpdateState;
+	pinned: boolean;
+}
+export interface StatusPageUpdate extends StatusPageUpdateInput {
+	id: string;
+	author: string;
+	createdAt: string;
+	updatedAt: string;
+}
+export interface PublicMaintenanceWindow {
+	id: string;
+	name: string;
+	start: string;
+	end: string;
+	repeat: number;
+	status: "scheduled" | "in_progress";
+	monitors: { id: string; name: string }[];
+}
+
 export interface StatusPage {
+	updates?: StatusPageUpdate[];
 	id: string;
 	userId: string;
 	teamId: string;
@@ -81,6 +112,7 @@ export interface StatusPage {
 export interface StatusPageResponse {
 	statusPage: StatusPage;
 	monitors: Monitor[];
+	maintenanceWindows?: PublicMaintenanceWindow[];
 	range?: StatusPageDayRange; // present only when range !== "latest"
 	bucketTimezone?: string;
 	checkTTLDays?: number;

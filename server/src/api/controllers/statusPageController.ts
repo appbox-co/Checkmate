@@ -3,6 +3,9 @@ import { catchAsync } from "@/utils/catchAsync.js";
 
 import {
 	createStatusPageBodyValidation,
+	statusUpdateBodyValidation,
+	statusUpdatePageParamValidation,
+	statusUpdateParamValidation,
 	getStatusPageParamValidation,
 	getStatusPageQueryValidation,
 	imageValidation,
@@ -20,6 +23,9 @@ export interface IStatusPageController {
 	resolveStatusPageByDomain: RequestHandler;
 	getStatusPagesByTeamId: RequestHandler;
 	deleteStatusPage: RequestHandler;
+	addStatusUpdate: RequestHandler;
+	editStatusUpdate: RequestHandler;
+	deleteStatusUpdate: RequestHandler;
 }
 
 class StatusPageController implements IStatusPageController {
@@ -29,14 +35,14 @@ class StatusPageController implements IStatusPageController {
 	}
 
 	createStatusPage = catchAsync(async (req: Request, res: Response) => {
-		createStatusPageBodyValidation.parse(req.body);
+		const body = createStatusPageBodyValidation.parse(req.body);
 		if (req.file) {
 			imageValidation.parse(req.file);
 		}
 
 		const teamId = requireTeamId(req?.user?.teamId);
 		const userId = requireUserId(req?.user?.id);
-		const statusPage = await this.statusPageService.createStatusPage(userId, teamId, req.file, req.body);
+		const statusPage = await this.statusPageService.createStatusPage(userId, teamId, req.file, body);
 
 		return res.status(200).json({
 			success: true,
@@ -46,7 +52,7 @@ class StatusPageController implements IStatusPageController {
 	});
 
 	updateStatusPage = catchAsync(async (req: Request, res: Response) => {
-		createStatusPageBodyValidation.parse(req.body);
+		const body = createStatusPageBodyValidation.parse(req.body);
 		if (req.file) {
 			imageValidation.parse(req.file);
 		}
@@ -56,7 +62,7 @@ class StatusPageController implements IStatusPageController {
 		if (!statusPageId) {
 			throw new AppError({ message: "Status page ID is required", status: 400 });
 		}
-		const statusPage = await this.statusPageService.updateStatusPage(statusPageId, teamId, req.file, req.body);
+		const statusPage = await this.statusPageService.updateStatusPage(statusPageId, teamId, req.file, body);
 		if (statusPage === null) {
 			throw new AppError({ message: "Status page not found", status: 404 });
 		}
@@ -115,6 +121,28 @@ class StatusPageController implements IStatusPageController {
 			msg: "Status pages retrieved successfully",
 			data: statusPages,
 		});
+	});
+
+	addStatusUpdate = catchAsync(async (req: Request, res: Response) => {
+		const { id } = statusUpdatePageParamValidation.parse(req.params);
+		const body = statusUpdateBodyValidation.parse(req.body);
+		const teamId = requireTeamId(req.user?.teamId);
+		const author = [req.user?.firstName, req.user?.lastName].filter(Boolean).join(" ");
+		const data = await this.statusPageService.addStatusUpdate(id, teamId, author, body);
+		return res.status(200).json({ success: true, msg: "Status update published", data });
+	});
+
+	editStatusUpdate = catchAsync(async (req: Request, res: Response) => {
+		const { id, updateId } = statusUpdateParamValidation.parse(req.params);
+		const body = statusUpdateBodyValidation.parse(req.body);
+		const data = await this.statusPageService.editStatusUpdate(id, requireTeamId(req.user?.teamId), updateId, body);
+		return res.status(200).json({ success: true, msg: "Status update saved", data });
+	});
+
+	deleteStatusUpdate = catchAsync(async (req: Request, res: Response) => {
+		const { id, updateId } = statusUpdateParamValidation.parse(req.params);
+		const data = await this.statusPageService.deleteStatusUpdate(id, requireTeamId(req.user?.teamId), updateId);
+		return res.status(200).json({ success: true, msg: "Status update deleted", data });
 	});
 
 	deleteStatusPage = catchAsync(async (req: Request, res: Response) => {

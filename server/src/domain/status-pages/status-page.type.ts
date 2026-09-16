@@ -30,7 +30,36 @@ export interface StatusPageLogoDocument {
 	contentType: string;
 }
 
+export const StatusUpdateStates = ["announcement", "investigating", "identified", "monitoring", "resolved"] as const;
+export type StatusUpdateState = (typeof StatusUpdateStates)[number];
+export const MAX_STATUS_PAGE_UPDATES = 200;
+
+export interface StatusPageUpdateInput {
+	title: string;
+	body: string;
+	status: StatusUpdateState;
+	pinned: boolean;
+}
+
+export interface StatusPageUpdate extends StatusPageUpdateInput {
+	id: string;
+	author: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface PublicMaintenanceWindow {
+	id: string;
+	name: string;
+	start: string;
+	end: string;
+	repeat: number;
+	status: "scheduled" | "in_progress";
+	monitors: { id: string; name: string }[];
+}
+
 export interface StatusPage {
+	updates?: StatusPageUpdate[];
 	id: string;
 	userId: string;
 	teamId: string;
@@ -65,6 +94,7 @@ export type PublicStatusPageMonitor = Pick<Monitor, "id" | "name" | "type" | "st
 export interface PublicStatusPagePayload {
 	statusPage: StatusPage;
 	monitors: PublicStatusPageMonitor[];
+	maintenanceWindows: PublicMaintenanceWindow[];
 	range?: StatusPageDayRange;
 	bucketTimezone?: string;
 	checkTTLDays?: number;

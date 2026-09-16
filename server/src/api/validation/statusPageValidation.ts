@@ -2,6 +2,7 @@ import { z } from "zod";
 import { booleanCoercion, dnsHostnameRegex, timezoneValidation } from "./shared.js";
 import {
 	StatusPageTypes,
+	StatusUpdateStates,
 	StatusPageThemes,
 	StatusPageThemeModes,
 	StatusPageRanges,
@@ -118,7 +119,36 @@ export const checkSnapshotResponseSchema = z
 
 // Status page entity as serialized by the repository. Keep aligned with StatusPage in
 // domain/status-pages/status-page.type.ts.
+
+export const statusUpdateBodyValidation = z
+	.object({
+		title: z.string().trim().min(1).max(160),
+		body: z.string().trim().min(1).max(5000),
+		status: z.enum(StatusUpdateStates),
+		pinned: z.boolean(),
+	})
+	.strict();
+
+export const statusUpdatePageParamValidation = z.object({ id: z.string().regex(/^[0-9a-fA-F]{24}$/) });
+export const statusUpdateParamValidation = statusUpdatePageParamValidation.extend({ updateId: z.uuid() });
+export const statusUpdateResponseSchema = statusUpdateBodyValidation.extend({
+	id: z.string(),
+	author: z.string(),
+	createdAt: z.string(),
+	updatedAt: z.string(),
+});
+export const publicMaintenanceResponseSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	start: z.string(),
+	end: z.string(),
+	repeat: z.number(),
+	status: z.enum(["scheduled", "in_progress"]),
+	monitors: z.array(z.object({ id: z.string(), name: z.string() })),
+});
+
 export const statusPageResponseSchema = z.object({
+	updates: z.array(statusUpdateResponseSchema).optional(),
 	id: z.string(),
 	userId: z.string(),
 	teamId: z.string(),
@@ -163,6 +193,7 @@ export const publicStatusPageMonitorResponseSchema = z.object({
 export const publicStatusPagePayloadResponseSchema = z.object({
 	statusPage: statusPageResponseSchema,
 	monitors: z.array(publicStatusPageMonitorResponseSchema),
+	maintenanceWindows: z.array(publicMaintenanceResponseSchema),
 	range: z.enum(StatusPageDayRanges).optional(),
 	bucketTimezone: z.string().optional(),
 	checkTTLDays: z.number().optional(),

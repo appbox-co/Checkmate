@@ -1,3 +1,4 @@
+import { StatusPageUpdatesManager } from "./Components/StatusPageUpdatesManager";
 import { BasePage, BaseFallback } from "@/Components/design-elements";
 import Typography from "@mui/material/Typography";
 import { Link, useSearchParams } from "react-router-dom";
@@ -109,7 +110,7 @@ const StatusPageView = () => {
 		range,
 	});
 
-	const { data, isLoading, error } = useGet<StatusPageResponse>(
+	const { data, isLoading, error, refetch } = useGet<StatusPageResponse>(
 		apiUrl,
 		{},
 		{
@@ -123,7 +124,7 @@ const StatusPageView = () => {
 
 	if (!statusPage) return null;
 
-	if (monitors.length === 0) {
+	if (monitors.length === 0 && !statusPage.updates?.length) {
 		return (
 			<BasePage
 				loading={isLoading}
@@ -168,6 +169,7 @@ const StatusPageView = () => {
 				{customCss && <style>{customCss}</style>}
 				<BaseStatusPage
 					statusPage={statusPage}
+					maintenanceWindows={data.maintenanceWindows ?? []}
 					monitors={monitors}
 					config={themeConfig}
 					range={range}
@@ -193,6 +195,12 @@ const StatusPageView = () => {
 				statusPage={statusPage}
 				isPublic={false}
 			/>
+			{isAdmin && (
+				<StatusPageUpdatesManager
+					statusPage={statusPage}
+					onChange={refetch}
+				/>
+			)}
 			<StatusPageThemeProvider
 				theme={statusPage.theme}
 				themeMode={statusPage.themeMode}

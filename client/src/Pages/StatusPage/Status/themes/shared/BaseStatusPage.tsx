@@ -1,3 +1,5 @@
+import { StatusPageCommunications } from "../../Components/StatusPageCommunications";
+import type { PublicMaintenanceWindow } from "@/Types/StatusPage";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -90,6 +92,7 @@ export interface ThemeConfig<S extends BaseStyles = BaseStyles> {
 }
 
 interface Props {
+	maintenanceWindows?: PublicMaintenanceWindow[];
 	statusPage: StatusPage;
 	monitors: StatusPageMonitor[];
 	config: ThemeConfig<any>;
@@ -100,6 +103,7 @@ interface Props {
 }
 
 export const BaseStatusPage = ({
+	maintenanceWindows = [],
 	statusPage,
 	monitors,
 	config,
@@ -147,6 +151,13 @@ export const BaseStatusPage = ({
 				overall={overall}
 				monitorCount={monitors.length}
 				styles={styles}
+			/>
+
+			<StatusPageCommunications
+				section="notices"
+				updates={statusPage.updates ?? []}
+				maintenanceWindows={maintenanceWindows}
+				timezone={statusPage.timezone}
 			/>
 
 			{statusPage.showCharts && (
@@ -320,6 +331,12 @@ export const BaseStatusPage = ({
 				})}
 			</Stack>
 
+			<StatusPageCommunications
+				section="updates"
+				updates={statusPage.updates ?? []}
+				maintenanceWindows={[]}
+				timezone={statusPage.timezone}
+			/>
 			<Box
 				component="footer"
 				sx={styles.footer}

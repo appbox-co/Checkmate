@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from "@jest/globals";
+import type { IMaintenanceWindowsRepository } from "../../../src/domain/maintenance-windows/maintenance-window.repository.interface.ts";
 import { StatusPageService } from "../../../src/domain/status-pages/status-page.service.ts";
 import type { IStatusPagesRepository } from "../../../src/domain/status-pages/status-page-repository.interface.ts";
 import type { ISettingsService } from "../../../src/domain/app-settings/app-settings.service.ts";
@@ -89,7 +90,8 @@ const createService = (themesEnabled = true, clientHost = "http://localhost:5173
 	const settingsService = createSettingsService(themesEnabled, clientHost, showURL);
 	const monitorsRepo = createMonitorsRepo();
 	const checksRepo = createChecksRepo();
-	const service = new StatusPageService(repo, settingsService, monitorsRepo, checksRepo);
+	const maintenanceRepo = { findByMonitorIds: jest.fn().mockResolvedValue([]) } as unknown as IMaintenanceWindowsRepository;
+	const service = new StatusPageService(repo, settingsService, monitorsRepo, checksRepo, maintenanceRepo);
 	return { service, repo, settingsService, monitorsRepo, checksRepo };
 };
 
@@ -347,9 +349,9 @@ describe("StatusPageService", () => {
 
 		it("serves an unpublished page to its own team", async () => {
 			const { service } = createService();
-			const unpublished = makeStatusPage({ isPublished: false, teamId: "team-A" });
+			const unpublished = makeStatusPage({ isPublished: false, teamId: "team-1" });
 
-			const { monitors } = await service.getPublicStatusPagePayload(unpublished, "team-A");
+			const { monitors } = await service.getPublicStatusPagePayload(unpublished, "team-1");
 
 			expect(monitors).toHaveLength(1);
 		});

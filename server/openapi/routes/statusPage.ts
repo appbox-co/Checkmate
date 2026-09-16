@@ -2,6 +2,10 @@ import { registry } from "../registry.js";
 import { bearer, multipart, okJson, okJsonNoData, okUnknown, standardErrors } from "../helpers.js";
 import {
 	createStatusPageBodyValidation,
+	statusUpdateBodyValidation,
+	statusUpdatePageParamValidation,
+	statusUpdateParamValidation,
+	statusPageResponseSchema,
 	getStatusPageParamValidation,
 	getStatusPageQueryValidation,
 	publicStatusPagePayloadResponseSchema,
@@ -35,6 +39,7 @@ const publicStatusPageObject = publicStatusPagePayloadResponseSchema.openapi("Pu
 			createdAt: "2026-04-01T10:00:00.000Z",
 			updatedAt: "2026-04-15T14:30:00.000Z",
 		},
+		maintenanceWindows: [],
 		range: "90d",
 		bucketTimezone: "America/Toronto",
 		checkTTLDays: 30,
@@ -109,3 +114,18 @@ registry.registerPath({
 	security: bearer,
 	responses: { "200": okJsonNoData(), ...standardErrors },
 });
+
+for (const method of ["post", "put", "delete"] as const) {
+	registry.registerPath({
+		method,
+		path: method === "post" ? "/status-page/{id}/updates" : "/status-page/{id}/updates/{updateId}",
+		tags,
+		summary: `${method === "post" ? "Publish" : method === "put" ? "Edit or pin" : "Delete"} a staff status update (admin only)`,
+		security: bearer,
+		request: {
+			params: method === "post" ? statusUpdatePageParamValidation : statusUpdateParamValidation,
+			...(method !== "delete" ? { body: { content: { "application/json": { schema: statusUpdateBodyValidation } } } } : {}),
+		},
+		responses: { "200": okJson(statusPageResponseSchema), "409": { description: "Page update limit reached" }, ...standardErrors },
+	});
+}

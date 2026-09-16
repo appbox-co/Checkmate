@@ -9,6 +9,9 @@ export const createStatusPageRoutes = (
 	verifyStatusPageAccess: RequestHandler
 ): Router => {
 	const router = Router();
+	router.post("/:id/updates", verifyJWT, isAllowed(["admin", "superadmin"]), statusPageController.addStatusUpdate);
+	router.put("/:id/updates/:updateId", verifyJWT, isAllowed(["admin", "superadmin"]), statusPageController.editStatusUpdate);
+	router.delete("/:id/updates/:updateId", verifyJWT, isAllowed(["admin", "superadmin"]), statusPageController.deleteStatusUpdate);
 	router.get("/team", verifyJWT, statusPageController.getStatusPagesByTeamId);
 	router.post("/", imageUpload.single("logo"), verifyJWT, isAllowed(["admin", "superadmin"]), statusPageController.createStatusPage);
 	router.put("/:id", imageUpload.single("logo"), verifyJWT, isAllowed(["admin", "superadmin"]), statusPageController.updateStatusPage);

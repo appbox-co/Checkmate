@@ -1,4 +1,4 @@
-import type { StatusPage } from "@/domain/status-pages/status-page.type.js";
+import type { StatusPage, StatusPageUpdate, StatusPageUpdateInput } from "@/domain/status-pages/status-page.type.js";
 
 export interface IStatusPagesRepository {
 	// create
@@ -12,6 +12,9 @@ export interface IStatusPagesRepository {
 	updateById(id: string, teamId: string, image: Express.Multer.File | undefined, data: Partial<StatusPage>): Promise<StatusPage>;
 	// delete
 	deleteById(id: string, teamId: string): Promise<StatusPage>;
+	addUpdate(id: string, teamId: string, update: StatusPageUpdate): Promise<StatusPage>;
+	editUpdate(id: string, teamId: string, updateId: string, data: StatusPageUpdateInput, updatedAt: string): Promise<StatusPage>;
+	deleteUpdate(id: string, teamId: string, updateId: string): Promise<StatusPage>;
 	// other
 	removeMonitorFromStatusPages(monitorId: string): Promise<number>;
 }

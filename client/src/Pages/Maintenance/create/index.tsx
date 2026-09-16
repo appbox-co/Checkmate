@@ -119,6 +119,9 @@ const CreateMaintenanceWindowPage = () => {
 				component={"form"}
 				onSubmit={handleSubmit(onSubmit, onError)}
 			>
+				<Typography color={theme.palette.text.secondary}>
+					{t("pages.statusPages.communications.maintenanceHint")}
+				</Typography>
 				<ConfigBox
 					title={t("pages.maintenanceWindow.form.general.title")}
 					subtitle={t("pages.maintenanceWindow.form.general.description")}

@@ -1,6 +1,13 @@
 import { IStatusPagesRepository } from "@/domain/status-pages/status-page-repository.interface.js";
 import { type StatusPageDocument, StatusPageModel } from "@/domain/status-pages/status-page.model.js";
-import type { StatusPage, StatusPageLogo, StatusPageLogoDocument } from "@/domain/status-pages/status-page.type.js";
+import {
+	MAX_STATUS_PAGE_UPDATES,
+	type StatusPage,
+	type StatusPageUpdate,
+	type StatusPageUpdateInput,
+	type StatusPageLogo,
+	type StatusPageLogoDocument,
+} from "@/domain/status-pages/status-page.type.js";
 import mongoose from "mongoose";
 import { AppError } from "@/utils/AppError.js";
 import { normalizeStatusPageDomain } from "@/utils/statusPageDomain.js";
@@ -52,6 +59,16 @@ class MongoStatusPagesRepository implements IStatusPagesRepository {
 			themeMode: doc.themeMode,
 			createdAt: toDateString(doc.createdAt),
 			updatedAt: toDateString(doc.updatedAt),
+			updates: (doc.updates ?? []).map(({ id, title, body, status, pinned, author, createdAt, updatedAt }) => ({
+				id,
+				title,
+				body,
+				status,
+				pinned,
+				author,
+				createdAt,
+				updatedAt,
+			})),
 		};
 	};
 
@@ -166,6 +183,53 @@ class MongoStatusPagesRepository implements IStatusPagesRepository {
 			throw new AppError({ message: "Status page not found", status: 404 });
 		}
 		return this.toEntity(statusPage);
+	};
+
+	addUpdate = async (id: string, teamId: string, update: StatusPageUpdate): Promise<StatusPage> => {
+		// One document update preserves concurrent posts and enforces the size bound atomically.
+		const page = await StatusPageModel.findOneAndUpdate(
+			{ _id: id, teamId, $expr: { $lt: [{ $size: { $ifNull: ["$updates", []] } }, MAX_STATUS_PAGE_UPDATES] } },
+			{ $push: { updates: update } },
+			{ new: true, runValidators: true }
+		);
+		if (!page) {
+			if (await StatusPageModel.exists({ _id: id, teamId })) {
+				throw new AppError({
+					message: `This page has ${MAX_STATUS_PAGE_UPDATES} updates. Remove an older update before publishing another.`,
+					status: 409,
+				});
+			}
+			throw new AppError({ message: "Status page not found", status: 404 });
+		}
+		return this.toEntity(page);
+	};
+
+	editUpdate = async (id: string, teamId: string, updateId: string, data: StatusPageUpdateInput, updatedAt: string): Promise<StatusPage> => {
+		const page = await StatusPageModel.findOneAndUpdate(
+			{ _id: id, teamId, "updates.id": updateId },
+			{
+				$set: {
+					"updates.$.title": data.title,
+					"updates.$.body": data.body,
+					"updates.$.status": data.status,
+					"updates.$.pinned": data.pinned,
+					"updates.$.updatedAt": updatedAt,
+				},
+			},
+			{ new: true, runValidators: true }
+		);
+		if (!page) throw new AppError({ message: "Status update not found", status: 404 });
+		return this.toEntity(page);
+	};
+
+	deleteUpdate = async (id: string, teamId: string, updateId: string): Promise<StatusPage> => {
+		const page = await StatusPageModel.findOneAndUpdate(
+			{ _id: id, teamId, "updates.id": updateId },
+			{ $pull: { updates: { id: updateId } } },
+			{ new: true }
+		);
+		if (!page) throw new AppError({ message: "Status update not found", status: 404 });
+		return this.toEntity(page);
 	};
 
 	removeMonitorFromStatusPages = async (monitorId: string): Promise<number> => {

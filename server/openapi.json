@@ -1550,6 +1550,45 @@
 					"statusPage": {
 						"type": "object",
 						"properties": {
+							"updates": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"title": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 160
+										},
+										"body": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 5000
+										},
+										"status": {
+											"type": "string",
+											"enum": ["announcement", "investigating", "identified", "monitoring", "resolved"]
+										},
+										"pinned": {
+											"type": "boolean"
+										},
+										"id": {
+											"type": "string"
+										},
+										"author": {
+											"type": "string"
+										},
+										"createdAt": {
+											"type": "string"
+										},
+										"updatedAt": {
+											"type": "string"
+										}
+									},
+									"required": ["title", "body", "status", "pinned", "id", "author", "createdAt", "updatedAt"],
+									"additionalProperties": false
+								}
+							},
 							"id": {
 								"type": "string"
 							},
@@ -1788,6 +1827,49 @@
 							"required": ["id", "name", "type", "status", "recentChecks"]
 						}
 					},
+					"maintenanceWindows": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								},
+								"start": {
+									"type": "string"
+								},
+								"end": {
+									"type": "string"
+								},
+								"repeat": {
+									"type": "number"
+								},
+								"status": {
+									"type": "string",
+									"enum": ["scheduled", "in_progress"]
+								},
+								"monitors": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"id": {
+												"type": "string"
+											},
+											"name": {
+												"type": "string"
+											}
+										},
+										"required": ["id", "name"]
+									}
+								}
+							},
+							"required": ["id", "name", "start", "end", "repeat", "status", "monitors"]
+						}
+					},
 					"range": {
 						"type": "string",
 						"enum": ["30d", "60d", "90d"]
@@ -1799,7 +1881,7 @@
 						"type": "number"
 					}
 				},
-				"required": ["statusPage", "monitors"],
+				"required": ["statusPage", "monitors", "maintenanceWindows"],
 				"example": {
 					"statusPage": {
 						"id": "65f1c2a4d8b9e0123456789c",
@@ -1824,6 +1906,7 @@
 						"createdAt": "2026-04-01T10:00:00.000Z",
 						"updatedAt": "2026-04-15T14:30:00.000Z"
 					},
+					"maintenanceWindows": [],
 					"range": "90d",
 					"bucketTimezone": "America/Toronto",
 					"checkTTLDays": 30,
@@ -14435,6 +14518,910 @@
 					},
 					"404": {
 						"description": "Status page not found"
+					},
+					"500": {
+						"description": "Internal server error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/status-page/{id}/updates": {
+			"post": {
+				"tags": ["status-page"],
+				"summary": "Publish a staff status update (admin only)",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"pattern": "^[0-9a-fA-F]{24}$"
+						},
+						"required": true,
+						"name": "id",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"title": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 160
+									},
+									"body": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"status": {
+										"type": "string",
+										"enum": ["announcement", "investigating", "identified", "monitoring", "resolved"]
+									},
+									"pinned": {
+										"type": "boolean"
+									}
+								},
+								"required": ["title", "body", "status", "pinned"],
+								"additionalProperties": false
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [true]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"type": "object",
+											"properties": {
+												"updates": {
+													"type": "array",
+													"items": {
+														"type": "object",
+														"properties": {
+															"title": {
+																"type": "string",
+																"minLength": 1,
+																"maxLength": 160
+															},
+															"body": {
+																"type": "string",
+																"minLength": 1,
+																"maxLength": 5000
+															},
+															"status": {
+																"type": "string",
+																"enum": ["announcement", "investigating", "identified", "monitoring", "resolved"]
+															},
+															"pinned": {
+																"type": "boolean"
+															},
+															"id": {
+																"type": "string"
+															},
+															"author": {
+																"type": "string"
+															},
+															"createdAt": {
+																"type": "string"
+															},
+															"updatedAt": {
+																"type": "string"
+															}
+														},
+														"required": ["title", "body", "status", "pinned", "id", "author", "createdAt", "updatedAt"],
+														"additionalProperties": false
+													}
+												},
+												"id": {
+													"type": "string"
+												},
+												"userId": {
+													"type": "string"
+												},
+												"teamId": {
+													"type": "string"
+												},
+												"type": {
+													"type": "array",
+													"items": {
+														"type": "string",
+														"enum": ["uptime", "infrastructure"]
+													}
+												},
+												"companyName": {
+													"type": "string"
+												},
+												"url": {
+													"type": "string"
+												},
+												"customDomain": {
+													"type": "string",
+													"nullable": true
+												},
+												"timezone": {
+													"type": "string"
+												},
+												"color": {
+													"type": "string"
+												},
+												"monitors": {
+													"type": "array",
+													"items": {
+														"type": "string"
+													}
+												},
+												"subMonitors": {
+													"type": "array",
+													"items": {
+														"type": "string"
+													}
+												},
+												"originalMonitors": {
+													"type": "array",
+													"items": {
+														"type": "string"
+													}
+												},
+												"logo": {
+													"type": "object",
+													"nullable": true,
+													"properties": {
+														"data": {
+															"type": "string"
+														},
+														"contentType": {
+															"type": "string"
+														}
+													},
+													"required": ["data", "contentType"]
+												},
+												"isPublished": {
+													"type": "boolean"
+												},
+												"showCharts": {
+													"type": "boolean"
+												},
+												"showUptimePercentage": {
+													"type": "boolean"
+												},
+												"showAdminLoginLink": {
+													"type": "boolean"
+												},
+												"showInfrastructure": {
+													"type": "boolean"
+												},
+												"customCSS": {
+													"type": "string"
+												},
+												"theme": {
+													"type": "string",
+													"enum": ["refined", "modern", "bold", "editorial", "minimal"]
+												},
+												"themeMode": {
+													"type": "string",
+													"enum": ["auto", "light", "dark"]
+												},
+												"createdAt": {
+													"type": "string"
+												},
+												"updatedAt": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"id",
+												"userId",
+												"teamId",
+												"type",
+												"companyName",
+												"url",
+												"color",
+												"monitors",
+												"subMonitors",
+												"isPublished",
+												"showCharts",
+												"showUptimePercentage",
+												"showAdminLoginLink",
+												"showInfrastructure",
+												"customCSS",
+												"theme",
+												"themeMode",
+												"createdAt",
+												"updatedAt"
+											]
+										}
+									},
+									"required": ["success", "msg", "data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Page update limit reached"
+					},
+					"500": {
+						"description": "Internal server error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/status-page/{id}/updates/{updateId}": {
+			"put": {
+				"tags": ["status-page"],
+				"summary": "Edit or pin a staff status update (admin only)",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"pattern": "^[0-9a-fA-F]{24}$"
+						},
+						"required": true,
+						"name": "id",
+						"in": "path"
+					},
+					{
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"required": true,
+						"name": "updateId",
+						"in": "path"
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"title": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 160
+									},
+									"body": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"status": {
+										"type": "string",
+										"enum": ["announcement", "investigating", "identified", "monitoring", "resolved"]
+									},
+									"pinned": {
+										"type": "boolean"
+									}
+								},
+								"required": ["title", "body", "status", "pinned"],
+								"additionalProperties": false
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [true]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"type": "object",
+											"properties": {
+												"updates": {
+													"type": "array",
+													"items": {
+														"type": "object",
+														"properties": {
+															"title": {
+																"type": "string",
+																"minLength": 1,
+																"maxLength": 160
+															},
+															"body": {
+																"type": "string",
+																"minLength": 1,
+																"maxLength": 5000
+															},
+															"status": {
+																"type": "string",
+																"enum": ["announcement", "investigating", "identified", "monitoring", "resolved"]
+															},
+															"pinned": {
+																"type": "boolean"
+															},
+															"id": {
+																"type": "string"
+															},
+															"author": {
+																"type": "string"
+															},
+															"createdAt": {
+																"type": "string"
+															},
+															"updatedAt": {
+																"type": "string"
+															}
+														},
+														"required": ["title", "body", "status", "pinned", "id", "author", "createdAt", "updatedAt"],
+														"additionalProperties": false
+													}
+												},
+												"id": {
+													"type": "string"
+												},
+												"userId": {
+													"type": "string"
+												},
+												"teamId": {
+													"type": "string"
+												},
+												"type": {
+													"type": "array",
+													"items": {
+														"type": "string",
+														"enum": ["uptime", "infrastructure"]
+													}
+												},
+												"companyName": {
+													"type": "string"
+												},
+												"url": {
+													"type": "string"
+												},
+												"customDomain": {
+													"type": "string",
+													"nullable": true
+												},
+												"timezone": {
+													"type": "string"
+												},
+												"color": {
+													"type": "string"
+												},
+												"monitors": {
+													"type": "array",
+													"items": {
+														"type": "string"
+													}
+												},
+												"subMonitors": {
+													"type": "array",
+													"items": {
+														"type": "string"
+													}
+												},
+												"originalMonitors": {
+													"type": "array",
+													"items": {
+														"type": "string"
+													}
+												},
+												"logo": {
+													"type": "object",
+													"nullable": true,
+													"properties": {
+														"data": {
+															"type": "string"
+														},
+														"contentType": {
+															"type": "string"
+														}
+													},
+													"required": ["data", "contentType"]
+												},
+												"isPublished": {
+													"type": "boolean"
+												},
+												"showCharts": {
+													"type": "boolean"
+												},
+												"showUptimePercentage": {
+													"type": "boolean"
+												},
+												"showAdminLoginLink": {
+													"type": "boolean"
+												},
+												"showInfrastructure": {
+													"type": "boolean"
+												},
+												"customCSS": {
+													"type": "string"
+												},
+												"theme": {
+													"type": "string",
+													"enum": ["refined", "modern", "bold", "editorial", "minimal"]
+												},
+												"themeMode": {
+													"type": "string",
+													"enum": ["auto", "light", "dark"]
+												},
+												"createdAt": {
+													"type": "string"
+												},
+												"updatedAt": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"id",
+												"userId",
+												"teamId",
+												"type",
+												"companyName",
+												"url",
+												"color",
+												"monitors",
+												"subMonitors",
+												"isPublished",
+												"showCharts",
+												"showUptimePercentage",
+												"showAdminLoginLink",
+												"showInfrastructure",
+												"customCSS",
+												"theme",
+												"themeMode",
+												"createdAt",
+												"updatedAt"
+											]
+										}
+									},
+									"required": ["success", "msg", "data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Page update limit reached"
+					},
+					"500": {
+						"description": "Internal server error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": ["status-page"],
+				"summary": "Delete a staff status update (admin only)",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"pattern": "^[0-9a-fA-F]{24}$"
+						},
+						"required": true,
+						"name": "id",
+						"in": "path"
+					},
+					{
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						},
+						"required": true,
+						"name": "updateId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [true]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"type": "object",
+											"properties": {
+												"updates": {
+													"type": "array",
+													"items": {
+														"type": "object",
+														"properties": {
+															"title": {
+																"type": "string",
+																"minLength": 1,
+																"maxLength": 160
+															},
+															"body": {
+																"type": "string",
+																"minLength": 1,
+																"maxLength": 5000
+															},
+															"status": {
+																"type": "string",
+																"enum": ["announcement", "investigating", "identified", "monitoring", "resolved"]
+															},
+															"pinned": {
+																"type": "boolean"
+															},
+															"id": {
+																"type": "string"
+															},
+															"author": {
+																"type": "string"
+															},
+															"createdAt": {
+																"type": "string"
+															},
+															"updatedAt": {
+																"type": "string"
+															}
+														},
+														"required": ["title", "body", "status", "pinned", "id", "author", "createdAt", "updatedAt"],
+														"additionalProperties": false
+													}
+												},
+												"id": {
+													"type": "string"
+												},
+												"userId": {
+													"type": "string"
+												},
+												"teamId": {
+													"type": "string"
+												},
+												"type": {
+													"type": "array",
+													"items": {
+														"type": "string",
+														"enum": ["uptime", "infrastructure"]
+													}
+												},
+												"companyName": {
+													"type": "string"
+												},
+												"url": {
+													"type": "string"
+												},
+												"customDomain": {
+													"type": "string",
+													"nullable": true
+												},
+												"timezone": {
+													"type": "string"
+												},
+												"color": {
+													"type": "string"
+												},
+												"monitors": {
+													"type": "array",
+													"items": {
+														"type": "string"
+													}
+												},
+												"subMonitors": {
+													"type": "array",
+													"items": {
+														"type": "string"
+													}
+												},
+												"originalMonitors": {
+													"type": "array",
+													"items": {
+														"type": "string"
+													}
+												},
+												"logo": {
+													"type": "object",
+													"nullable": true,
+													"properties": {
+														"data": {
+															"type": "string"
+														},
+														"contentType": {
+															"type": "string"
+														}
+													},
+													"required": ["data", "contentType"]
+												},
+												"isPublished": {
+													"type": "boolean"
+												},
+												"showCharts": {
+													"type": "boolean"
+												},
+												"showUptimePercentage": {
+													"type": "boolean"
+												},
+												"showAdminLoginLink": {
+													"type": "boolean"
+												},
+												"showInfrastructure": {
+													"type": "boolean"
+												},
+												"customCSS": {
+													"type": "string"
+												},
+												"theme": {
+													"type": "string",
+													"enum": ["refined", "modern", "bold", "editorial", "minimal"]
+												},
+												"themeMode": {
+													"type": "string",
+													"enum": ["auto", "light", "dark"]
+												},
+												"createdAt": {
+													"type": "string"
+												},
+												"updatedAt": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"id",
+												"userId",
+												"teamId",
+												"type",
+												"companyName",
+												"url",
+												"color",
+												"monitors",
+												"subMonitors",
+												"isPublished",
+												"showCharts",
+												"showUptimePercentage",
+												"showAdminLoginLink",
+												"showInfrastructure",
+												"customCSS",
+												"theme",
+												"themeMode",
+												"createdAt",
+												"updatedAt"
+											]
+										}
+									},
+									"required": ["success", "msg", "data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Page update limit reached"
 					},
 					"500": {
 						"description": "Internal server error",

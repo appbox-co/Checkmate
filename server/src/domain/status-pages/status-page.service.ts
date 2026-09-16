@@ -1,3 +1,7 @@
+import { randomUUID } from "node:crypto";
+import type { IMaintenanceWindowsRepository } from "@/domain/maintenance-windows/maintenance-window.repository.interface.js";
+import { publicMaintenanceWindow } from "./public-maintenance.js";
+import type { StatusPageUpdateInput } from "./status-page.type.js";
 import { type IStatusPagesRepository } from "@/domain/status-pages/status-page-repository.interface.js";
 import { ISettingsService } from "@/domain/app-settings/app-settings.service.js";
 import { IMonitorsRepository } from "@/domain/monitors/monitor.repository.interface.js";
@@ -23,6 +27,9 @@ export interface IStatusPageService {
 	getPublicStatusPagePayload(statusPage: StatusPage, requesterTeamId: string | undefined, range: StatusPageRange): Promise<PublicStatusPagePayload>;
 	updateStatusPage(id: string, teamId: string, image: Express.Multer.File | undefined, data: Partial<StatusPage>): Promise<StatusPage>;
 
+	addStatusUpdate(id: string, teamId: string, author: string, data: StatusPageUpdateInput): Promise<StatusPage>;
+	editStatusUpdate(id: string, teamId: string, updateId: string, data: StatusPageUpdateInput): Promise<StatusPage>;
+	deleteStatusUpdate(id: string, teamId: string, updateId: string): Promise<StatusPage>;
 	deleteStatusPage(statusPageId: string, teamId: string): Promise<StatusPage>;
 }
 
@@ -31,7 +38,8 @@ export class StatusPageService implements IStatusPageService {
 		private statusPagesRepository: IStatusPagesRepository,
 		private settingsService: ISettingsService,
 		private monitorsRepository: IMonitorsRepository,
-		private checksRepository: IChecksRepository
+		private checksRepository: IChecksRepository,
+		private maintenanceWindowsRepository: IMaintenanceWindowsRepository
 	) {}
 
 	private assertCustomDomainAllowed = (customDomain: string | null | undefined) => {
@@ -135,11 +143,22 @@ export class StatusPageService implements IStatusPageService {
 		const dbSettings = await this.settingsService.getDBSettings();
 		const showURL = dbSettings.showURL;
 		const monitors = await this.monitorsRepository.findByIds(statusPage.monitors, { recentChecks: range === "latest" ? "all" : "latestHardware" });
+		const pageMonitors = monitors.filter((monitor) => monitor.teamId === statusPage.teamId);
+		const windows = await this.maintenanceWindowsRepository.findByMonitorIds(
+			pageMonitors.map(({ id }) => id),
+			statusPage.teamId
+		);
+		const now = new Date();
+		const maintenanceWindows = windows
+			.filter((window) => window.teamId === statusPage.teamId)
+			.map((window) => publicMaintenanceWindow(window, pageMonitors, now))
+			.filter((window) => window !== null)
+			.sort((a, b) => a.start.localeCompare(b.start));
 		const order = new Map(statusPage.monitors.map((id, i) => [id, i]));
-		const sorted = [...monitors].sort((a, b) => (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+		const sorted = [...pageMonitors].sort((a, b) => (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER));
 
 		if (range === "latest") {
-			return { statusPage, monitors: sorted.map((monitor) => this.toPublicMonitor(monitor, showURL)) };
+			return { statusPage, maintenanceWindows, monitors: sorted.map((monitor) => this.toPublicMonitor(monitor, showURL)) };
 		}
 
 		const days = STATUS_PAGE_RANGE_DAYS[range];
@@ -157,6 +176,7 @@ export class StatusPageService implements IStatusPageService {
 
 		return {
 			statusPage,
+			maintenanceWindows,
 			range,
 			bucketTimezone,
 			checkTTLDays: dbSettings.checkTTL,
@@ -172,6 +192,23 @@ export class StatusPageService implements IStatusPageService {
 		const updated = await this.statusPagesRepository.updateById(id, teamId, image, normalizedData);
 		return this.normalizeTheme(updated);
 	};
+
+	addStatusUpdate = async (id: string, teamId: string, author: string, data: StatusPageUpdateInput): Promise<StatusPage> => {
+		const now = new Date().toISOString();
+		return this.statusPagesRepository.addUpdate(id, teamId, {
+			...data,
+			id: randomUUID(),
+			author: author.trim().slice(0, 160) || "Staff",
+			createdAt: now,
+			updatedAt: now,
+		});
+	};
+
+	editStatusUpdate = async (id: string, teamId: string, updateId: string, data: StatusPageUpdateInput): Promise<StatusPage> =>
+		this.statusPagesRepository.editUpdate(id, teamId, updateId, data, new Date().toISOString());
+
+	deleteStatusUpdate = async (id: string, teamId: string, updateId: string): Promise<StatusPage> =>
+		this.statusPagesRepository.deleteUpdate(id, teamId, updateId);
 
 	deleteStatusPage = async (statusPageId: string, teamId: string): Promise<StatusPage> => {
 		return await this.statusPagesRepository.deleteById(statusPageId, teamId);
