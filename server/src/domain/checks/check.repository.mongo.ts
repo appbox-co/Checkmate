@@ -1,3 +1,4 @@
+import { toGeoCheckObservation } from "@/domain/geo-checks/geo-check.mapper.js";
 import { IChecksRepository } from "@/domain/checks/check.repository.interface.js";
 import type {
 	Check,
@@ -160,6 +161,8 @@ class MongoChecksRepository implements IChecksRepository {
 			id: toStringId(doc._id),
 			metadata: mapMetadata(doc.metadata),
 			status: doc.status ?? false,
+			geoCheck: toGeoCheckObservation(doc.geoCheck),
+			localStatus: doc.localStatus,
 			responseTime: doc.responseTime ?? 0,
 			timings: mapTimings(doc.timings),
 			statusCode: doc.statusCode ?? 0,

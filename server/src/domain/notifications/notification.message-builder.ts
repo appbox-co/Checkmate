@@ -1,3 +1,5 @@
+import { formatGeoLocation, getGeoCheckState } from "@/domain/geo-checks/geo-check.status.js";
+import { NETWORK_ERROR } from "@/types/network.js";
 import type { Monitor } from "@/domain/monitors/monitor.type.js";
 import type { HardwareStatusPayload, MonitorStatusResponse } from "@/types/network.js";
 import type { MonitorActionDecision } from "@/worker/worker.helper.js";
@@ -37,6 +39,21 @@ export class NotificationMessageBuilder implements INotificationMessageBuilder {
 			content.title = `Reminder: ${content.title}`;
 			content.summary =
 				monitor.status === "down" ? `Monitor "${monitor.name}" is still down.` : `Monitor "${monitor.name}" still has exceeded thresholds.`;
+		}
+
+		const failures = monitor.status === "down" ? getGeoCheckState(monitor)?.failures : monitorStatusResponse.recoveredGeoFailures;
+		if (failures?.length) {
+			content.summary = content.summary.replace("down and unreachable", "down");
+			const label = monitor.status === "down" ? "Failed locations" : "Previously failed locations";
+			// The summary reaches every provider, including SMS providers that omit details.
+			content.summary += ` ${label}: ${failures.map((failure) => formatGeoLocation(failure.location)).join("; ")}.`;
+			content.details = [
+				...(content.details ?? []),
+				...failures.map(
+					(failure) =>
+						`${formatGeoLocation(failure.location)}: ${failure.statusCode === NETWORK_ERROR ? "connection, DNS or timeout failure" : `response ${failure.statusCode}`} (last failure ${failure.checkedAt})`
+				),
+			];
 		}
 
 		return {
@@ -120,12 +137,12 @@ export class NotificationMessageBuilder implements INotificationMessageBuilder {
 		const details = [`URL: ${monitor.url}`, `Status: Down`, `Type: ${monitor.type}`];
 
 		// Add response code if available
-		if (monitorStatusResponse.code) {
+		if (!getGeoCheckState(monitor)?.failures.length && monitorStatusResponse.code) {
 			details.push(`Response Code: ${monitorStatusResponse.code}`);
 		}
 
 		// Add error message if available
-		if (monitorStatusResponse.message) {
+		if (!getGeoCheckState(monitor)?.failures.length && monitorStatusResponse.message) {
 			details.push(`Error: ${monitorStatusResponse.message}`);
 		}
 

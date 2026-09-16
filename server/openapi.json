@@ -470,6 +470,108 @@
 					"geoCheckInterval": {
 						"type": "number"
 					},
+					"geoCheckState": {
+						"type": "object",
+						"properties": {
+							"configuration": {
+								"type": "string"
+							},
+							"checkedAt": {
+								"type": "string"
+							},
+							"failures": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"location": {
+											"type": "object",
+											"properties": {
+												"continent": {
+													"type": "string",
+													"enum": ["EU", "NA", "AS", "SA", "AF", "OC"]
+												},
+												"region": {
+													"type": "string"
+												},
+												"country": {
+													"type": "string"
+												},
+												"state": {
+													"type": "string"
+												},
+												"city": {
+													"type": "string"
+												},
+												"longitude": {
+													"type": "number"
+												},
+												"latitude": {
+													"type": "number"
+												}
+											},
+											"required": ["continent", "region", "country", "state", "city", "longitude", "latitude"]
+										},
+										"statusCode": {
+											"type": "number"
+										},
+										"checkedAt": {
+											"type": "string"
+										}
+									},
+									"required": ["location", "statusCode", "checkedAt"]
+								}
+							},
+							"outageLocations": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"location": {
+											"type": "object",
+											"properties": {
+												"continent": {
+													"type": "string",
+													"enum": ["EU", "NA", "AS", "SA", "AF", "OC"]
+												},
+												"region": {
+													"type": "string"
+												},
+												"country": {
+													"type": "string"
+												},
+												"state": {
+													"type": "string"
+												},
+												"city": {
+													"type": "string"
+												},
+												"longitude": {
+													"type": "number"
+												},
+												"latitude": {
+													"type": "number"
+												}
+											},
+											"required": ["continent", "region", "country", "state", "city", "longitude", "latitude"]
+										},
+										"statusCode": {
+											"type": "number"
+										},
+										"checkedAt": {
+											"type": "string"
+										}
+									},
+									"required": ["location", "statusCode", "checkedAt"]
+								}
+							}
+						},
+						"required": ["configuration", "failures", "outageLocations"]
+					},
+					"geoCheckLocalStatus": {
+						"type": "string",
+						"enum": ["up", "down", "paused", "initializing", "maintenance", "breached"]
+					},
 					"dockerLogsEnabled": {
 						"type": "boolean"
 					},
@@ -706,6 +808,108 @@
 									},
 									"geoCheckInterval": {
 										"type": "number"
+									},
+									"geoCheckState": {
+										"type": "object",
+										"properties": {
+											"configuration": {
+												"type": "string"
+											},
+											"checkedAt": {
+												"type": "string"
+											},
+											"failures": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"properties": {
+														"location": {
+															"type": "object",
+															"properties": {
+																"continent": {
+																	"type": "string",
+																	"enum": ["EU", "NA", "AS", "SA", "AF", "OC"]
+																},
+																"region": {
+																	"type": "string"
+																},
+																"country": {
+																	"type": "string"
+																},
+																"state": {
+																	"type": "string"
+																},
+																"city": {
+																	"type": "string"
+																},
+																"longitude": {
+																	"type": "number"
+																},
+																"latitude": {
+																	"type": "number"
+																}
+															},
+															"required": ["continent", "region", "country", "state", "city", "longitude", "latitude"]
+														},
+														"statusCode": {
+															"type": "number"
+														},
+														"checkedAt": {
+															"type": "string"
+														}
+													},
+													"required": ["location", "statusCode", "checkedAt"]
+												}
+											},
+											"outageLocations": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"properties": {
+														"location": {
+															"type": "object",
+															"properties": {
+																"continent": {
+																	"type": "string",
+																	"enum": ["EU", "NA", "AS", "SA", "AF", "OC"]
+																},
+																"region": {
+																	"type": "string"
+																},
+																"country": {
+																	"type": "string"
+																},
+																"state": {
+																	"type": "string"
+																},
+																"city": {
+																	"type": "string"
+																},
+																"longitude": {
+																	"type": "number"
+																},
+																"latitude": {
+																	"type": "number"
+																}
+															},
+															"required": ["continent", "region", "country", "state", "city", "longitude", "latitude"]
+														},
+														"statusCode": {
+															"type": "number"
+														},
+														"checkedAt": {
+															"type": "string"
+														}
+													},
+													"required": ["location", "statusCode", "checkedAt"]
+												}
+											}
+										},
+										"required": ["configuration", "failures", "outageLocations"]
+									},
+									"geoCheckLocalStatus": {
+										"type": "string",
+										"enum": ["up", "down", "paused", "initializing", "maintenance", "breached"]
 									},
 									"dockerLogsEnabled": {
 										"type": "boolean"
@@ -7291,6 +7495,108 @@
 														"geoCheckInterval": {
 															"type": "number"
 														},
+														"geoCheckState": {
+															"type": "object",
+															"properties": {
+																"configuration": {
+																	"type": "string"
+																},
+																"checkedAt": {
+																	"type": "string"
+																},
+																"failures": {
+																	"type": "array",
+																	"items": {
+																		"type": "object",
+																		"properties": {
+																			"location": {
+																				"type": "object",
+																				"properties": {
+																					"continent": {
+																						"type": "string",
+																						"enum": ["EU", "NA", "AS", "SA", "AF", "OC"]
+																					},
+																					"region": {
+																						"type": "string"
+																					},
+																					"country": {
+																						"type": "string"
+																					},
+																					"state": {
+																						"type": "string"
+																					},
+																					"city": {
+																						"type": "string"
+																					},
+																					"longitude": {
+																						"type": "number"
+																					},
+																					"latitude": {
+																						"type": "number"
+																					}
+																				},
+																				"required": ["continent", "region", "country", "state", "city", "longitude", "latitude"]
+																			},
+																			"statusCode": {
+																				"type": "number"
+																			},
+																			"checkedAt": {
+																				"type": "string"
+																			}
+																		},
+																		"required": ["location", "statusCode", "checkedAt"]
+																	}
+																},
+																"outageLocations": {
+																	"type": "array",
+																	"items": {
+																		"type": "object",
+																		"properties": {
+																			"location": {
+																				"type": "object",
+																				"properties": {
+																					"continent": {
+																						"type": "string",
+																						"enum": ["EU", "NA", "AS", "SA", "AF", "OC"]
+																					},
+																					"region": {
+																						"type": "string"
+																					},
+																					"country": {
+																						"type": "string"
+																					},
+																					"state": {
+																						"type": "string"
+																					},
+																					"city": {
+																						"type": "string"
+																					},
+																					"longitude": {
+																						"type": "number"
+																					},
+																					"latitude": {
+																						"type": "number"
+																					}
+																				},
+																				"required": ["continent", "region", "country", "state", "city", "longitude", "latitude"]
+																			},
+																			"statusCode": {
+																				"type": "number"
+																			},
+																			"checkedAt": {
+																				"type": "string"
+																			}
+																		},
+																		"required": ["location", "statusCode", "checkedAt"]
+																	}
+																}
+															},
+															"required": ["configuration", "failures", "outageLocations"]
+														},
+														"geoCheckLocalStatus": {
+															"type": "string",
+															"enum": ["up", "down", "paused", "initializing", "maintenance", "breached"]
+														},
 														"dockerLogsEnabled": {
 															"type": "boolean"
 														},
@@ -7874,6 +8180,108 @@
 														},
 														"geoCheckInterval": {
 															"type": "number"
+														},
+														"geoCheckState": {
+															"type": "object",
+															"properties": {
+																"configuration": {
+																	"type": "string"
+																},
+																"checkedAt": {
+																	"type": "string"
+																},
+																"failures": {
+																	"type": "array",
+																	"items": {
+																		"type": "object",
+																		"properties": {
+																			"location": {
+																				"type": "object",
+																				"properties": {
+																					"continent": {
+																						"type": "string",
+																						"enum": ["EU", "NA", "AS", "SA", "AF", "OC"]
+																					},
+																					"region": {
+																						"type": "string"
+																					},
+																					"country": {
+																						"type": "string"
+																					},
+																					"state": {
+																						"type": "string"
+																					},
+																					"city": {
+																						"type": "string"
+																					},
+																					"longitude": {
+																						"type": "number"
+																					},
+																					"latitude": {
+																						"type": "number"
+																					}
+																				},
+																				"required": ["continent", "region", "country", "state", "city", "longitude", "latitude"]
+																			},
+																			"statusCode": {
+																				"type": "number"
+																			},
+																			"checkedAt": {
+																				"type": "string"
+																			}
+																		},
+																		"required": ["location", "statusCode", "checkedAt"]
+																	}
+																},
+																"outageLocations": {
+																	"type": "array",
+																	"items": {
+																		"type": "object",
+																		"properties": {
+																			"location": {
+																				"type": "object",
+																				"properties": {
+																					"continent": {
+																						"type": "string",
+																						"enum": ["EU", "NA", "AS", "SA", "AF", "OC"]
+																					},
+																					"region": {
+																						"type": "string"
+																					},
+																					"country": {
+																						"type": "string"
+																					},
+																					"state": {
+																						"type": "string"
+																					},
+																					"city": {
+																						"type": "string"
+																					},
+																					"longitude": {
+																						"type": "number"
+																					},
+																					"latitude": {
+																						"type": "number"
+																					}
+																				},
+																				"required": ["continent", "region", "country", "state", "city", "longitude", "latitude"]
+																			},
+																			"statusCode": {
+																				"type": "number"
+																			},
+																			"checkedAt": {
+																				"type": "string"
+																			}
+																		},
+																		"required": ["location", "statusCode", "checkedAt"]
+																	}
+																}
+															},
+															"required": ["configuration", "failures", "outageLocations"]
+														},
+														"geoCheckLocalStatus": {
+															"type": "string",
+															"enum": ["up", "down", "paused", "initializing", "maintenance", "breached"]
 														},
 														"dockerLogsEnabled": {
 															"type": "boolean"

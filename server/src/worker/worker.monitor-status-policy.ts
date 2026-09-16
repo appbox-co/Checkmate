@@ -18,6 +18,8 @@ export class MonitorStatusPolicy implements IMonitorStatusPolicy {
 			notificationReason: null,
 		};
 
+		if (statusChangeResult.geoCheckSkipped) return decision;
+
 		if (!statusChanged) {
 			if (
 				monitor.isActive &&

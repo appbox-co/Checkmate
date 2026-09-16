@@ -823,7 +823,8 @@
 								"thirtyMinutes": "30 minutes"
 							}
 						}
-					}
+					},
+					"outagePolicy": "Any failed geographic probe marks this monitor down and alerts include the failed location. Recovery requires a successful check from each affected region and a healthy local check. Missing probes or Globalping errors keep the last known result. HTTP probes use the configured URL, method and accepted status codes; body matching and proxy settings apply only to the local check."
 				},
 				"dockerLogs": {
 					"title": "Container logs",

@@ -135,7 +135,7 @@ export class DBQueueWorker extends JobScheduler implements IQueueWorker {
 
 	private runGeoCheck = async (job: Job) => {
 		const monitor = await this.monitorsRepository.findByIdLean(job.refId!);
-		if (monitor) await this.geoCheckPipeline.run(monitor); // returns null; no evaluate handoff
+		if (monitor) await this.geoCheckPipeline.run(monitor); // queues the observation for the normal evaluator
 	};
 
 	// Extend the lock while a job runs so a slow-but-alive job is never reclaimed.

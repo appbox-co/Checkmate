@@ -1066,6 +1066,9 @@ const CreateMonitorPage = () => {
 									name="geoCheckEnabled"
 									label={t("pages.createMonitor.form.geoChecks.option.enabled.label")}
 								/>
+								<Typography color={theme.palette.text.secondary}>
+									{t("pages.createMonitor.form.geoChecks.outagePolicy")}
+								</Typography>
 								{watchGeoCheckEnabled && (
 									<Stack spacing={theme.spacing(LAYOUT.MD)}>
 										<FormMultiSelectField

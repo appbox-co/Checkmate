@@ -35,6 +35,27 @@ export interface GeoCheckResult {
 	timings: GeoCheckTimings;
 }
 
+// A geographic observation travels through the existing per-monitor evaluation queue.
+export interface GeoCheckObservation {
+	configuration: string;
+	checkedAt: string;
+	results: GeoCheckResult[];
+}
+
+export interface GeoCheckFailure {
+	location: GeoCheckLocation;
+	statusCode: number;
+	checkedAt: string;
+}
+
+export interface GeoCheckState {
+	configuration: string;
+	checkedAt?: string; // absent until the first conclusive geographic observation
+	failures: GeoCheckFailure[];
+	// Retain affected locations until the combined local/geographic outage recovers.
+	outageLocations: GeoCheckFailure[];
+}
+
 export interface GeoCheck {
 	id: string;
 	metadata: GeoCheckMetadata;

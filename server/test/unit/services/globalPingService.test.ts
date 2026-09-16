@@ -82,8 +82,12 @@ describe("GlobalPingService", () => {
 					json: {
 						type: "http",
 						target: "example.com",
-						locations: [{ continent: "NA" }, { continent: "EU" }],
-						limit: 2,
+						locations: [
+							{ continent: "NA", limit: 1 },
+							{ continent: "EU", limit: 1 },
+						],
+						measurementOptions: { protocol: "HTTPS", port: 443, request: { method: "GET", path: "/", query: "" } },
+						timeout: 20,
 					},
 					responseType: "json",
 					timeout: { request: 10000 },
@@ -120,7 +124,10 @@ describe("GlobalPingService", () => {
 			expect(mockGotPost).toHaveBeenCalledWith(
 				expect.any(String),
 				expect.objectContaining({
-					json: expect.objectContaining({ target: "example.com/path" }),
+					json: expect.objectContaining({
+						target: "example.com",
+						measurementOptions: { protocol: "HTTPS", port: 443, request: { method: "GET", path: "/path", query: "" } },
+					}),
 				})
 			);
 		});
@@ -306,6 +313,58 @@ describe("GlobalPingService", () => {
 	});
 
 	// ── transformResults (via pollForResults) ────────────────────────────
+
+	describe("geographic outage observations", () => {
+		it.each(["target", "resolver"])("retains %s failures, including connection and DNS timeouts", async (failureSource) => {
+			const { service } = createService();
+			mockGotGet.mockResolvedValue({ body: { status: "finished", results: [makeProbeResult({ result: { status: "failed", failureSource } })] } });
+			expect(await service.pollForResults("failure")).toEqual([
+				expect.objectContaining({ status: false, statusCode: 5000, location: expect.objectContaining({ city: "San Francisco" }) }),
+			]);
+		});
+		it.each([
+			{ status: "offline" },
+			{ status: "in-progress" },
+			{ status: "failed", failureSource: "internal" },
+			{ status: "failed" },
+			{ status: "finished", stats: { loss: null, total: 3 } },
+			{ status: "finished", stats: { loss: 0, total: 0 } },
+		])("ignores inconclusive probe result %j", async (result) => {
+			const { service } = createService();
+			mockGotGet.mockResolvedValue({ body: { status: "finished", results: [makeProbeResult({ result })] } });
+			expect(await service.pollForResults("unknown")).toEqual([]);
+		});
+		it("accepts a configured HTTP status without timings", async () => {
+			const { service } = createService();
+			mockGotGet.mockResolvedValue({ body: { status: "finished", results: [makeProbeResult({ result: { status: "finished", statusCode: 401 } })] } });
+			expect((await service.pollForResults("custom", undefined, [401]))[0]).toMatchObject({ status: true, statusCode: 401, timings: { total: 0 } });
+		});
+		it("preserves HTTPS, path, query, port and the configured method with one probe per continent", async () => {
+			const { service } = createService();
+			mockGotPost.mockResolvedValue({ body: { id: "method" } });
+			await service.createMeasurement("http", "https://example.com:8443/v1/jobs?health=1#ignored", ["EU", "NA", "EU"], "HEAD");
+			expect(mockGotPost).toHaveBeenCalledWith(
+				expect.any(String),
+				expect.objectContaining({
+					json: {
+						type: "http",
+						target: "example.com",
+						locations: [
+							{ continent: "EU", limit: 1 },
+							{ continent: "NA", limit: 1 },
+						],
+						timeout: 20,
+						measurementOptions: { protocol: "HTTPS", port: 8443, request: { method: "HEAD", path: "/v1/jobs", query: "health=1" } },
+					},
+				})
+			);
+		});
+		it("does not publish URL credentials to Globalping", async () => {
+			const { service } = createService();
+			expect(await service.createMeasurement("http", "https://user:secret@example.com", ["EU"])).toBeNull();
+			expect(mockGotPost).not.toHaveBeenCalled();
+		});
+	});
 
 	describe("transformResults", () => {
 		it("skips probes with non-finished status", async () => {

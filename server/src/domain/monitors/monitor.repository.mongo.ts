@@ -1,3 +1,4 @@
+import { toGeoCheckState } from "@/domain/geo-checks/geo-check.mapper.js";
 import { MonitorModel } from "@/domain/monitors/monitor.model.js";
 import type { MonitorDocument, CheckSnapshotDocument } from "@/domain/monitors/monitor.model.js";
 import type { CheckSnapshot } from "@/domain/checks/check.type.js";
@@ -486,6 +487,8 @@ class MongoMonitorsRepository implements IMonitorsRepository {
 			recentChecks: (doc.recentChecks ?? []).map((check: CheckSnapshotDocument) => toCheckSnapshot(check)),
 			geoCheckEnabled: doc.geoCheckEnabled ?? false,
 			geoCheckLocations: doc.geoCheckLocations ?? [],
+			geoCheckState: toGeoCheckState(doc.geoCheckState),
+			geoCheckLocalStatus: doc.geoCheckLocalStatus,
 			geoCheckInterval: doc.geoCheckInterval ?? 300000,
 			dockerLogsEnabled: doc.dockerLogsEnabled ?? false,
 			dockerTlsCa: doc.dockerTlsCa ?? undefined,

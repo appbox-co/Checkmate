@@ -1,3 +1,4 @@
+import { getGeoCheckState, geoFailureMessage } from "@/domain/geo-checks/geo-check.status.js";
 const SERVICE_NAME = "incidentService";
 import type { Monitor } from "@/domain/monitors/monitor.type.js";
 import type { MonitorStatusResponse } from "@/types/network.js";
@@ -75,7 +76,8 @@ export class IncidentService implements IIncidentService {
 				return activeIncident;
 			} else {
 				let statusCode = code;
-				let message: string | undefined;
+				const geoFailures = getGeoCheckState(monitor)?.failures ?? [];
+				let message: string | undefined = geoFailures.length ? geoFailureMessage(geoFailures) : undefined;
 
 				// For threshold breaches, use 9999 status code and build descriptive message
 				if (decision.incidentReason === "threshold_breach") {

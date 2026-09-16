@@ -1,3 +1,4 @@
+import { geoCheckStateSchema } from "@/domain/geo-checks/geo-check.model.js";
 import { Schema, model, Types } from "mongoose";
 import type { Monitor, MonitorMatchMethod, CheckSnapshot } from "@/domain/monitors/monitor.type.js";
 import {
@@ -301,6 +302,8 @@ const MonitorSchema = new Schema<MonitorDocument>(
 				return value && value.trim() ? value.trim() : null;
 			},
 		},
+		geoCheckState: { type: geoCheckStateSchema, default: undefined },
+		geoCheckLocalStatus: { type: String, enum: MonitorStatuses, default: undefined },
 		geoCheckEnabled: {
 			type: Boolean,
 			default: false,

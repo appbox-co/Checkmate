@@ -1,3 +1,4 @@
+import { geoCheckStateResponseSchema } from "./geoStatusValidation.js";
 import { z } from "zod";
 import RE2 from "re2";
 import { booleanCoercion, dnsHostnameRegex, dnsServerValidation } from "./shared.js";
@@ -439,6 +440,8 @@ export const monitorResponseSchema = z
 		geoCheckEnabled: z.boolean(),
 		geoCheckLocations: z.array(z.enum(GeoContinents)),
 		geoCheckInterval: z.number(),
+		geoCheckState: geoCheckStateResponseSchema.optional(),
+		geoCheckLocalStatus: z.enum(MonitorStatuses).optional(),
 		dockerLogsEnabled: z.boolean(),
 		dockerTlsCa: z.string().optional(),
 		dockerTlsCert: z.string().optional(),

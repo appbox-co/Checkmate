@@ -1,6 +1,7 @@
 import type { GeoContinent, GeoCheckResult, GeoCheckTimings, GeoCheckLocation } from "@/domain/geo-checks/geo-check.type.js";
 import { supportsGeoCheck, type HttpStatusCode } from "@/domain/monitors/monitor.type.js";
-import { MonitorType } from "@/domain/monitors/monitor.type.js";
+import { NETWORK_ERROR } from "@/types/network.js";
+import { MonitorType, type HttpMethod } from "@/domain/monitors/monitor.type.js";
 import type { ILogger } from "@/utils/logger.js";
 import got from "got";
 import { isStatusUp } from "@/service/network/utils.js";
@@ -8,13 +9,15 @@ import { isStatusUp } from "@/service/network/utils.js";
 const SERVICE_NAME = "GlobalPingService";
 const GLOBAL_PING_API_BASE = "https://api.globalping.io/v1";
 const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_TIMEOUT_MS = 30000;
+const PROBE_TIMEOUT_SECONDS = 20;
+const MAX_POLL_TIMEOUT_MS = (PROBE_TIMEOUT_SECONDS + 10) * 1000; // Allow API finalization after probe timeout.
 
 interface GlobalPingMeasurementRequest {
 	type: MonitorType;
 	target: string;
-	locations: Array<{ continent: GeoContinent }>;
-	limit: number;
+	locations: Array<{ continent: GeoContinent; limit: number }>;
+	measurementOptions?: { protocol: "HTTP" | "HTTPS"; port: number; request: { method: HttpMethod; path: string; query: string } };
+	timeout: number;
 }
 
 interface GlobalPingMeasurementResponse {
@@ -36,7 +39,8 @@ interface GlobalPingProbeResult {
 		latitude: number;
 	};
 	result: {
-		status: "finished" | "failed" | "timeout";
+		status: "in-progress" | "finished" | "failed" | "offline";
+		failureSource?: "target" | "resolver" | "internal";
 		statusCode?: number;
 		statusCodeName?: string;
 		timings?: {
@@ -61,7 +65,7 @@ interface GlobalPingProbeResult {
 }
 
 export interface IGlobalPingService {
-	createMeasurement(monitorType: MonitorType, url: string, locations: GeoContinent[]): Promise<string | null>;
+	createMeasurement(monitorType: MonitorType, url: string, locations: GeoContinent[], method?: HttpMethod): Promise<string | null>;
 	pollForResults(measurementId: string, timeoutMs?: number, customUpCodes?: HttpStatusCode[]): Promise<GeoCheckResult[]>;
 }
 
@@ -74,19 +78,32 @@ export class GlobalPingService implements IGlobalPingService {
 		this.logger = logger;
 	}
 
-	async createMeasurement(monitorType: MonitorType, url: string, locations: GeoContinent[]): Promise<string | null> {
+	async createMeasurement(monitorType: MonitorType, url: string, locations: GeoContinent[], method: HttpMethod = "GET"): Promise<string | null> {
 		try {
 			if (!supportsGeoCheck(monitorType)) {
 				throw new Error(`Unsupported monitor type for GlobalPing: ${monitorType}`);
 			}
-			// GlobalPing API expects target without protocol (http:// or https://)
-			const cleanTarget = url.replace(/^https?:\/\//, "");
-
+			const parsedUrl = monitorType === "http" ? new URL(url) : undefined;
+			if (parsedUrl && (!["http:", "https:"].includes(parsedUrl.protocol) || parsedUrl.username || parsedUrl.password)) {
+				throw new Error("Geographic HTTP checks require a public HTTP(S) URL without credentials");
+			}
+			const cleanTarget = parsedUrl ? parsedUrl.hostname.replace(/^\[|\]$/g, "") : url;
+			const uniqueLocations = [...new Set(locations)];
 			const requestBody: GlobalPingMeasurementRequest = {
 				type: monitorType,
 				target: cleanTarget,
-				locations: locations.map((continent) => ({ continent })),
-				limit: locations.length,
+				// A per-location limit guarantees one probe per selected continent.
+				locations: uniqueLocations.map((continent) => ({ continent, limit: 1 })),
+				timeout: PROBE_TIMEOUT_SECONDS,
+				...(parsedUrl
+					? {
+							measurementOptions: {
+								protocol: parsedUrl.protocol === "https:" ? ("HTTPS" as const) : ("HTTP" as const),
+								port: parsedUrl.port ? Number(parsedUrl.port) : parsedUrl.protocol === "https:" ? 443 : 80,
+								request: { method, path: parsedUrl.pathname, query: parsedUrl.search.slice(1) },
+							},
+						}
+					: {}),
 			};
 
 			const response = await got.post<GlobalPingMeasurementResponse>(`${GLOBAL_PING_API_BASE}/measurements`, {
@@ -175,58 +192,31 @@ export class GlobalPingService implements IGlobalPingService {
 	}
 
 	private transformResults(probeResults: GlobalPingProbeResult[], customUpCodes: HttpStatusCode[] = []): GeoCheckResult[] {
-		const successfulResults: GeoCheckResult[] = [];
-
-		for (const probeResult of probeResults) {
-			if (probeResult.result.status !== "finished") {
-				continue;
-			}
-
-			const location: GeoCheckLocation = {
-				continent: probeResult.probe.continent,
-				region: probeResult.probe.region,
-				country: probeResult.probe.country,
-				state: probeResult.probe.state || "",
-				city: probeResult.probe.city,
-				longitude: probeResult.probe.longitude,
-				latitude: probeResult.probe.latitude,
+		const results: GeoCheckResult[] = [];
+		for (const { probe, result } of probeResults) {
+			// Globalping identifies target/DNS failures separately from a broken/offline probe.
+			// Unknown or incomplete results cannot assert either outage or recovery.
+			const targetFailed = result.status === "failed" && (result.failureSource === "target" || result.failureSource === "resolver");
+			if (result.status !== "finished" && !targetFailed) continue;
+			const location: GeoCheckLocation = { ...probe, state: probe.state ?? "" };
+			const timings: GeoCheckTimings = {
+				total: result.timings?.total ?? 0,
+				dns: result.timings?.dns ?? 0,
+				tcp: result.timings?.tcp ?? 0,
+				tls: result.timings?.tls ?? 0,
+				firstByte: result.timings?.firstByte ?? 0,
+				download: result.timings?.download ?? 0,
 			};
-
-			// HTTP results have statusCode and timings, ping results have stats
-			if (probeResult.result.statusCode && probeResult.result.timings) {
-				const timings: GeoCheckTimings = {
-					total: probeResult.result.timings.total,
-					dns: probeResult.result.timings.dns,
-					tcp: probeResult.result.timings.tcp,
-					tls: probeResult.result.timings.tls,
-					firstByte: probeResult.result.timings.firstByte,
-					download: probeResult.result.timings.download,
-				};
-
-				successfulResults.push({
-					location,
-					status: isStatusUp(probeResult.result.statusCode, customUpCodes),
-					statusCode: probeResult.result.statusCode,
-					timings,
-				});
-			} else if (probeResult.result.stats) {
-				successfulResults.push({
-					location,
-					status: probeResult.result.stats.loss === 0,
-					statusCode: probeResult.result.stats.loss === 0 ? 200 : 5000,
-					timings: {
-						total: probeResult.result.stats.avg,
-						dns: 0,
-						tcp: 0,
-						tls: 0,
-						firstByte: 0,
-						download: 0,
-					},
-				});
+			if (targetFailed) {
+				results.push({ location, status: false, statusCode: NETWORK_ERROR, timings });
+			} else if (typeof result.statusCode === "number" && result.statusCode >= 100) {
+				results.push({ location, status: isStatusUp(result.statusCode, customUpCodes), statusCode: result.statusCode, timings });
+			} else if (typeof result.stats?.loss === "number" && result.stats.total > 0) {
+				const up = result.stats.loss === 0;
+				results.push({ location, status: up, statusCode: up ? 200 : NETWORK_ERROR, timings: { ...timings, total: result.stats.avg ?? 0 } });
 			}
 		}
-
-		return successfulResults;
+		return results;
 	}
 
 	private sleep(ms: number): Promise<void> {

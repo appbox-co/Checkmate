@@ -1,3 +1,5 @@
+import { GeoContinents } from "./geo-check.type.js";
+import type { GeoCheckFailure, GeoCheckObservation, GeoCheckState } from "./geo-check.type.js";
 import { Schema, model, Types } from "mongoose";
 import { MonitorTypes, type MonitorType } from "@/domain/monitors/monitor.type.js";
 import type { GeoCheck, GeoCheckLocation, GeoCheckMetadata, GeoCheckResult, GeoCheckTimings } from "@/domain/geo-checks/geo-check.type.js";
@@ -44,7 +46,7 @@ const geoCheckTimingsSchema = new Schema<GeoCheckTimings>(
 
 const geoCheckLocationSchema = new Schema<GeoCheckLocation>(
 	{
-		continent: { type: String, required: true },
+		continent: { type: String, required: true, enum: GeoContinents },
 		region: { type: String, default: "" },
 		country: { type: String, default: "" },
 		state: { type: String, default: "" },
@@ -73,6 +75,34 @@ const geoCheckResultSchema = new Schema<GeoCheckResult>(
 			type: geoCheckTimingsSchema,
 			required: true,
 		},
+	},
+	{ _id: false }
+);
+
+export const geoCheckObservationSchema = new Schema<GeoCheckObservation>(
+	{
+		configuration: { type: String, required: true },
+		checkedAt: { type: String, required: true },
+		results: { type: [geoCheckResultSchema], default: [] },
+	},
+	{ _id: false }
+);
+
+const geoCheckFailureSchema = new Schema<GeoCheckFailure>(
+	{
+		location: { type: geoCheckLocationSchema, required: true },
+		statusCode: { type: Number, required: true },
+		checkedAt: { type: String, required: true },
+	},
+	{ _id: false }
+);
+
+export const geoCheckStateSchema = new Schema<GeoCheckState>(
+	{
+		configuration: { type: String, required: true },
+		checkedAt: { type: String, default: undefined },
+		failures: { type: [geoCheckFailureSchema], default: [] },
+		outageLocations: { type: [geoCheckFailureSchema], default: [] },
 	},
 	{ _id: false }
 );

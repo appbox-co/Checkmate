@@ -26,7 +26,7 @@ const createGeoPipeline = (overrides?: Record<string, any>) => {
 	const defaults = {
 		logger: createMockLogger(),
 		geoChecksService: { buildGeoCheck: jest.fn().mockResolvedValue(null) },
-		buffer: { addGeoCheckToBuffer: jest.fn() },
+		buffer: { addGeoCheckToBuffer: jest.fn(), addToBuffer: jest.fn() },
 		maintenanceWindowsRepository: { findByMonitorId: jest.fn().mockResolvedValue([]) },
 		...overrides,
 	};
@@ -39,8 +39,7 @@ const createGeoPipeline = (overrides?: Record<string, any>) => {
 	return { pipeline, defaults };
 };
 
-const geoMonitor = (overrides?: Partial<Monitor>) =>
-	makeMonitor({ geoCheckEnabled: true, type: "http", geoCheckLocations: ["us-east"], ...overrides });
+const geoMonitor = (overrides?: Partial<Monitor>) => makeMonitor({ geoCheckEnabled: true, type: "http", geoCheckLocations: ["NA"], ...overrides });
 
 describe("GeoChecksPipeline", () => {
 	it("throws when monitor id is missing", async () => {
@@ -90,12 +89,13 @@ describe("GeoChecksPipeline", () => {
 	});
 
 	it("adds geo check to buffer on success", async () => {
-		const geoCheck = { id: "gc-1", monitorId: "m1" };
+		const geoCheck = { id: "gc-1", metadata: { monitorId: "m1", teamId: "team", type: "http" }, results: [], createdAt: new Date().toISOString() };
 		const { pipeline, defaults } = createGeoPipeline({
 			geoChecksService: { buildGeoCheck: jest.fn().mockResolvedValue(geoCheck) },
 		});
 		await pipeline.run(geoMonitor());
 		expect(defaults.buffer.addGeoCheckToBuffer).toHaveBeenCalledWith(geoCheck);
+		expect(defaults.buffer.addToBuffer).toHaveBeenCalledWith(expect.objectContaining({ geoCheck: expect.objectContaining({ results: [] }) }));
 		expect(defaults.logger.debug).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("Geo check job executed") }));
 	});
 

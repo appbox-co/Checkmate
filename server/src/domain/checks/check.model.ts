@@ -1,3 +1,4 @@
+import { geoCheckObservationSchema } from "@/domain/geo-checks/geo-check.model.js";
 import { Schema, model, Types } from "mongoose";
 import { MonitorTypes, type MonitorType } from "@/domain/monitors/monitor.type.js";
 import type {
@@ -265,6 +266,8 @@ const CheckSchema = new Schema<CheckDocument>(
 			type: metadataSchema,
 			required: true,
 		},
+		geoCheck: { type: geoCheckObservationSchema, default: undefined },
+		localStatus: { type: Boolean, default: undefined },
 		status: {
 			type: Boolean,
 			index: true,

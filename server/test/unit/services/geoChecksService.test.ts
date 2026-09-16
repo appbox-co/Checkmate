@@ -116,7 +116,7 @@ describe("GeoChecksService", () => {
 			const result = await service.buildGeoCheck(makeMonitor());
 
 			expect(result).toBeNull();
-			expect(logger.debug).toHaveBeenCalledWith(expect.objectContaining({ message: "No successful geo check results" }));
+			expect(logger.debug).toHaveBeenCalledWith(expect.objectContaining({ message: "No conclusive geo check results" }));
 		});
 
 		it("returns null and logs error when an exception is thrown", async () => {

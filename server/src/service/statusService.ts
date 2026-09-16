@@ -1,3 +1,5 @@
+import { geoCheckConfiguration, getGeoCheckState, mergeGeoObservation } from "@/domain/geo-checks/geo-check.status.js";
+import { supportsGeoCheck } from "@/domain/monitors/monitor.type.js";
 import { IMonitorStatsRepository } from "@/domain/monitor-stats/monitor-stats.repository.interface.js";
 import { IMonitorsRepository } from "@/domain/monitors/monitor.repository.interface.js";
 import type { Check, CheckDiskInfo } from "@/domain/checks/check.type.js";
@@ -172,6 +174,57 @@ export class StatusService implements IStatusService {
 		};
 	};
 
+	private updateGeographicStatus = async (statusResponse: MonitorStatusResponse, check: Check, monitor: Monitor): Promise<StatusChangeResult> => {
+		const previousState = getGeoCheckState(monitor);
+		let state = previousState ?? { configuration: geoCheckConfiguration(monitor), failures: [], outageLocations: [] };
+		let localStatus = monitor.geoCheckLocalStatus ?? monitor.status;
+		// A pause or maintenance cycle resets the ordinary local window.
+		if (monitor.status === "initializing" || monitor.status === "maintenance") localStatus = monitor.status;
+		if (check.geoCheck) {
+			state = mergeGeoObservation(monitor, check.geoCheck);
+		} else {
+			const localUp = check.localStatus ?? check.status;
+			const window = [...(monitor.statusWindow ?? []), localUp].slice(-monitor.statusWindowSize);
+			if (localStatus === "initializing" || localStatus === "maintenance" || !MonitorStatuses.includes(localStatus)) {
+				localStatus = localUp ? "up" : "down";
+			}
+			if (window.length >= monitor.statusWindowSize) {
+				localStatus = (window.filter((up) => !up).length / window.length) * 100 >= monitor.statusWindowThreshold ? "down" : "up";
+			}
+		}
+		const nextStatus = state?.failures.length ? "down" : localStatus;
+		const changed = nextStatus !== monitor.status && (nextStatus === "down" || monitor.status === "down");
+		const recoveredGeoFailures = nextStatus === "up" && monitor.status === "down" ? previousState?.outageLocations : undefined;
+		if (state && nextStatus === "up") state = { ...state, outageLocations: [] };
+		const patch: Partial<Monitor> = {
+			status: nextStatus,
+			geoCheckLocalStatus: localStatus,
+			...(state ? { geoCheckState: state } : {}),
+			...this.reminderSchedule(monitor, nextStatus, changed),
+		};
+		const combinedUp = !state?.failures.length && (check.geoCheck ? localStatus !== "down" : (check.localStatus ?? check.status));
+		await this.tryUpdateRunningStats(monitor, { ...statusResponse, status: combinedUp });
+		const updated = check.geoCheck
+			? await this.monitorsRepository.updateById(monitor.id, monitor.teamId, patch)
+			: await this.monitorsRepository.updateStatusWindowAndChecks(
+					monitor.id,
+					monitor.teamId,
+					check.localStatus ?? check.status,
+					toCheckSnapshot({ ...check, status: combinedUp }),
+					monitor.statusWindowSize,
+					MAX_RECENT_CHECKS,
+					patch
+				);
+		return {
+			monitor: updated,
+			statusChanged: changed,
+			prevStatus: monitor.status,
+			code: statusResponse.code,
+			timestamp: Date.now(),
+			recoveredGeoFailures,
+		};
+	};
+
 	updateMonitorStatus = async (
 		statusResponse: MonitorStatusResponse<
 			| PingStatusPayload
@@ -189,6 +242,20 @@ export class StatusService implements IStatusService {
 	): Promise<StatusChangeResult> => {
 		try {
 			const { status, code } = statusResponse;
+			if (check.geoCheck) {
+				const previous = getGeoCheckState(monitor);
+				if (
+					!monitor.geoCheckEnabled ||
+					!supportsGeoCheck(monitor.type) ||
+					check.geoCheck.configuration !== geoCheckConfiguration(monitor) ||
+					(previous && Date.parse(check.geoCheck.checkedAt) <= Date.parse(previous.checkedAt ?? ""))
+				) {
+					return { monitor, statusChanged: false, prevStatus: monitor.status, code, timestamp: Date.now(), geoCheckSkipped: true };
+				}
+			}
+			if (supportsGeoCheck(monitor.type) && (monitor.geoCheckEnabled || monitor.geoCheckLocalStatus)) {
+				return await this.updateGeographicStatus(statusResponse, check, monitor);
+			}
 
 			// Update running stats
 			await this.tryUpdateRunningStats(monitor, statusResponse);

@@ -73,7 +73,12 @@ export class GeoChecksService implements IGeoChecksService {
 			}
 
 			// Step 1: Create measurement request
-			const measurementId = await this.globalPingService.createMeasurement(monitor.type, monitor.url, monitor.geoCheckLocations);
+			const measurementId = await this.globalPingService.createMeasurement(
+				monitor.type,
+				monitor.url,
+				monitor.geoCheckLocations,
+				monitor.method ?? "GET"
+			);
 
 			if (!measurementId) {
 				// GlobalPing API is down, skip this check
@@ -89,9 +94,9 @@ export class GeoChecksService implements IGeoChecksService {
 			const results = await this.globalPingService.pollForResults(measurementId, undefined, monitor.customUpCodes ?? []);
 
 			if (results.length === 0) {
-				// No successful results (all locations timed out or failed)
+				// No conclusive target results (provider errors or unavailable probes)
 				this.logger.debug({
-					message: "No successful geo check results",
+					message: "No conclusive geo check results",
 					service: SERVICE_NAME,
 					method: "buildGeoCheck",
 				});

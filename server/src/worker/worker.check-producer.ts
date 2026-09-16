@@ -1,3 +1,4 @@
+import { applyGeoFailuresToCheck } from "@/domain/geo-checks/geo-check.status.js";
 import { Monitor } from "@/domain/monitors/monitor.type.js";
 import { Check } from "@/domain/checks/check.type.js";
 import { DockerStatusPayload, MonitorStatusResponse } from "@/types/network.js";
@@ -79,7 +80,8 @@ export class CheckProducer implements ICheckProducer {
 		// ****************************
 
 		// Step 2a:  Create & record a check, return null if fail
-		const check = this.checkService.toCheck(status);
+		const localCheck = this.checkService.toCheck(status);
+		const check = localCheck ? applyGeoFailuresToCheck(localCheck, monitor) : undefined;
 		if (!check) {
 			this.logger.warn({
 				message: `No check could be built for monitor ${monitor.id}`,

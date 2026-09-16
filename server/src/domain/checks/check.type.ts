@@ -1,3 +1,4 @@
+import type { GeoCheckObservation } from "@/domain/geo-checks/geo-check.type.js";
 import type { MonitorType } from "@/domain/monitors/monitor.type.js";
 import { DockerContainerInfo, DockerContainerSummary } from "@/domain/docker/docker.type.js";
 import type { Response } from "got";
@@ -97,6 +98,8 @@ export interface ILighthouseAudit {
 export interface Check {
 	id: string;
 	metadata: CheckMetadata;
+	geoCheck?: GeoCheckObservation;
+	localStatus?: boolean;
 	status: boolean;
 	responseTime: number;
 	timings?: GotTimings;

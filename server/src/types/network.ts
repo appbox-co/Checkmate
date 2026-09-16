@@ -1,3 +1,4 @@
+import type { GeoCheckFailure } from "@/domain/geo-checks/geo-check.type.js";
 import type {
 	CheckCaptureInfo,
 	CheckCpuInfo,
@@ -27,6 +28,7 @@ export interface MonitorStatusResponse<
 		| GrpcStatusPayload
 		| WebSocketStatusPayload,
 > {
+	recoveredGeoFailures?: GeoCheckFailure[];
 	monitorId: string;
 	teamId: string;
 	type: MonitorType;
@@ -145,6 +147,8 @@ export interface MonitorPayloadMap {
 }
 
 export type StatusChangeResult = {
+	recoveredGeoFailures?: GeoCheckFailure[];
+	geoCheckSkipped?: boolean;
 	monitor: Monitor;
 	statusChanged: boolean;
 	prevStatus: MonitorStatus;

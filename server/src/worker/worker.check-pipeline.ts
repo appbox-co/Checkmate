@@ -1,3 +1,4 @@
+import { geoCheckToCheck } from "@/domain/geo-checks/geo-check.status.js";
 import { Monitor } from "@/domain/monitors/monitor.type.js";
 import { MonitorEvaluation } from "@/worker/worker.interface.js";
 import { IMaintenanceWindowsRepository } from "@/domain/maintenance-windows/maintenance-window.repository.interface.js";
@@ -39,7 +40,7 @@ export class GeoChecksPipeline implements ICheckPipeline {
 			throw new AppError({ message: "No monitor id", service: SERVICE_NAME, method: "getHeartbeatGeoJob" });
 		}
 
-		if (!monitor.geoCheckEnabled) {
+		if (!monitor.geoCheckEnabled || monitor.isActive === false || monitor.status === "paused") {
 			return null;
 		}
 		if (!supportsGeoCheck(monitor.type)) {
@@ -88,6 +89,9 @@ export class GeoChecksPipeline implements ICheckPipeline {
 
 		// Step 2b: Add  to buffer
 		this.bufferService.addGeoCheckToBuffer(geoCheck);
+		// Reuse the existing serialized evaluation job for this monitor. Local and
+		// geographic producers never race to write status or dispatch duplicate alerts.
+		this.bufferService.addToBuffer(geoCheckToCheck(monitor, geoCheck));
 
 		this.logger.debug({
 			message: `Geo check job executed for monitor ${monitor.id}`,
