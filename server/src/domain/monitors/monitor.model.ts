@@ -1,6 +1,14 @@
 import { Schema, model, Types } from "mongoose";
 import type { Monitor, MonitorMatchMethod, CheckSnapshot } from "@/domain/monitors/monitor.type.js";
-import { DnsRecordTypes, MonitorTypes, MonitorStatuses, PageSpeedStrategies, HttpMethods, ProxyModes } from "@/domain/monitors/monitor.type.js";
+import {
+	NotificationReminderIntervals,
+	DnsRecordTypes,
+	MonitorTypes,
+	MonitorStatuses,
+	PageSpeedStrategies,
+	HttpMethods,
+	ProxyModes,
+} from "@/domain/monitors/monitor.type.js";
 import type {
 	CheckAudits,
 	ILighthouseAudit,
@@ -216,6 +224,8 @@ const MonitorSchema = new Schema<MonitorDocument>(
 			type: Number,
 			default: undefined,
 		},
+		notificationReminderInterval: { type: Number, enum: NotificationReminderIntervals, default: 0 },
+		nextNotificationReminderAt: { type: Number, default: 0 },
 		notifications: [
 			{
 				type: Schema.Types.ObjectId,

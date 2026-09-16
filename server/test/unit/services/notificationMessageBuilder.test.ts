@@ -760,3 +760,18 @@ describe("NotificationMessageBuilder", () => {
 		});
 	});
 });
+
+describe("reminder messages", () => {
+	it.each(["down", "breached"] as const)("labels %s reminders without reporting recovery", (status) => {
+		const message = new NotificationMessageBuilder().buildMessage(
+			makeMonitor({ status, type: status === "breached" ? "hardware" : "http" }),
+			makeStatusResponse(),
+			makeDecision({ notificationReason: "reminder" }),
+			"https://example.com"
+		);
+		expect(message.content.title).toMatch(/^Reminder:/);
+		expect(message.content.summary).toContain("still");
+		expect(message.type).toBe(status === "down" ? "monitor_down" : "threshold_breach");
+		expect(message.metadata.notificationReason).toBe("reminder");
+	});
+});

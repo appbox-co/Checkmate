@@ -45,6 +45,24 @@ class MongoMonitorsRepository implements IMonitorsRepository {
 		return monitor ? this.toEntity(monitor) : null;
 	};
 
+	claimNotificationReminder = async (monitorId: string, teamId: string, interval: number, now: number): Promise<Monitor | null> => {
+		if (interval <= 0) return null;
+		const monitor = await MonitorModel.findOneAndUpdate(
+			{
+				_id: monitorId,
+				teamId,
+				isActive: true,
+				status: { $in: ["down", "breached"] },
+				notificationReminderInterval: interval,
+				"notifications.0": { $exists: true },
+				$or: [{ nextNotificationReminderAt: { $lte: now } }, { nextNotificationReminderAt: { $exists: false } }],
+			},
+			{ $set: { nextNotificationReminderAt: now + interval } },
+			{ new: true }
+		).select({ recentChecks: 0 });
+		return monitor ? this.toEntity(monitor) : null;
+	};
+
 	findAllForScheduling = async (): Promise<MonitorScheduleFields[]> => {
 		const docs = await MonitorModel.find({}, { type: 1, isActive: 1, interval: 1, geoCheckEnabled: 1, geoCheckInterval: 1 }).lean();
 		return docs.map((doc) => ({
@@ -447,6 +465,8 @@ class MongoMonitorsRepository implements IMonitorsRepository {
 			interval: doc.interval,
 			uptimePercentage: doc.uptimePercentage ?? undefined,
 			notifications: notificationIds,
+			notificationReminderInterval: doc.notificationReminderInterval ?? 0,
+			nextNotificationReminderAt: doc.nextNotificationReminderAt ?? 0,
 			tags: tagIds,
 			customUpCodes: doc.customUpCodes ?? [],
 			secret: doc.secret ?? undefined,

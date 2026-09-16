@@ -407,6 +407,13 @@
 							"type": "string"
 						}
 					},
+					"notificationReminderInterval": {
+						"type": "number",
+						"enum": [0]
+					},
+					"nextNotificationReminderAt": {
+						"type": "number"
+					},
 					"tags": {
 						"type": "array",
 						"items": {
@@ -513,6 +520,8 @@
 					"useAdvancedMatching",
 					"method",
 					"notifications",
+					"notificationReminderInterval",
+					"nextNotificationReminderAt",
 					"tags",
 					"cpuAlertThreshold",
 					"memoryAlertThreshold",
@@ -635,6 +644,13 @@
 											"type": "string"
 										}
 									},
+									"notificationReminderInterval": {
+										"type": "number",
+										"enum": [0]
+									},
+									"nextNotificationReminderAt": {
+										"type": "number"
+									},
 									"tags": {
 										"type": "array",
 										"items": {
@@ -743,6 +759,8 @@
 									"useAdvancedMatching",
 									"method",
 									"notifications",
+									"notificationReminderInterval",
+									"nextNotificationReminderAt",
 									"tags",
 									"cpuAlertThreshold",
 									"memoryAlertThreshold",
@@ -7127,6 +7145,13 @@
 																"type": "string"
 															}
 														},
+														"notificationReminderInterval": {
+															"type": "number",
+															"enum": [0]
+														},
+														"nextNotificationReminderAt": {
+															"type": "number"
+														},
 														"tags": {
 															"type": "array",
 															"items": {
@@ -7235,6 +7260,8 @@
 														"useAdvancedMatching",
 														"method",
 														"notifications",
+														"notificationReminderInterval",
+														"nextNotificationReminderAt",
 														"tags",
 														"cpuAlertThreshold",
 														"memoryAlertThreshold",
@@ -7702,6 +7729,13 @@
 																"type": "string"
 															}
 														},
+														"notificationReminderInterval": {
+															"type": "number",
+															"enum": [0]
+														},
+														"nextNotificationReminderAt": {
+															"type": "number"
+														},
 														"tags": {
 															"type": "array",
 															"items": {
@@ -7810,6 +7844,8 @@
 														"useAdvancedMatching",
 														"method",
 														"notifications",
+														"notificationReminderInterval",
+														"nextNotificationReminderAt",
 														"tags",
 														"cpuAlertThreshold",
 														"memoryAlertThreshold",
@@ -9189,6 +9225,10 @@
 											"type": "string"
 										}
 									},
+									"notificationReminderInterval": {
+										"type": "number",
+										"enum": [0]
+									},
 									"tags": {
 										"type": "array",
 										"items": {
@@ -9917,6 +9957,11 @@
 													},
 													"default": []
 												},
+												"notificationReminderInterval": {
+													"type": "number",
+													"enum": [0],
+													"default": 0
+												},
 												"tags": {
 													"type": "array",
 													"items": {
@@ -10452,6 +10497,10 @@
 										"items": {
 											"type": "string"
 										}
+									},
+									"notificationReminderInterval": {
+										"type": "number",
+										"enum": [0]
 									},
 									"tags": {
 										"type": "array",

@@ -33,6 +33,9 @@ export interface IMonitorsRepository {
 	findByTeamIdWithStats(teamId: string, config: TeamQueryConfig): Promise<Monitor[]>;
 	findByIds(monitorIds: string[], options?: { recentChecks?: RecentChecksMode }): Promise<Monitor[]>;
 
+	// Reserve a due reminder before asynchronous delivery; null means it is no longer eligible.
+	claimNotificationReminder(monitorId: string, teamId: string, interval: number, now: number): Promise<Monitor | null>;
+
 	// update
 	updateById(monitorId: string, teamId: string, updates: Partial<Monitor>, options?: { unsetProxyId?: boolean }): Promise<Monitor>;
 	updateByIds(monitorIds: string[], teamId: string, updates: Partial<Monitor>, excludeStatuses?: MonitorStatus[]): Promise<number>;

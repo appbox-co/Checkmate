@@ -19,6 +19,16 @@ export class MonitorStatusPolicy implements IMonitorStatusPolicy {
 		};
 
 		if (!statusChanged) {
+			if (
+				monitor.isActive &&
+				(monitor.status === "down" || monitor.status === "breached") &&
+				(monitor.notificationReminderInterval ?? 0) > 0 &&
+				(monitor.notifications?.length ?? 0) > 0 &&
+				(monitor.nextNotificationReminderAt ?? 0) <= statusChangeResult.timestamp
+			) {
+				decision.shouldSendNotification = true;
+				decision.notificationReason = "reminder";
+			}
 			return decision;
 		}
 

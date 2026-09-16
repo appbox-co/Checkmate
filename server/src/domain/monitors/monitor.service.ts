@@ -561,6 +561,12 @@ export class MonitorService implements IMonitorService {
 				});
 			}
 		}
+		if (body.notificationReminderInterval !== undefined) {
+			const stored = await this.monitorsRepository.findById(monitorId, teamId);
+			if (body.notificationReminderInterval !== (stored.notificationReminderInterval ?? 0)) {
+				body.nextNotificationReminderAt = body.notificationReminderInterval > 0 ? Date.now() + body.notificationReminderInterval : 0;
+			}
+		}
 		const editedMonitor = await this.monitorsRepository.updateById(monitorId, teamId, body, { unsetProxyId });
 		await this.scheduler.updateJob(editedMonitor);
 		return editedMonitor;
@@ -742,6 +748,7 @@ export class MonitorService implements IMonitorService {
 			createdAt: "",
 			updatedAt: "",
 			lastEvaluatedAt: 0,
+			nextNotificationReminderAt: 0,
 		}));
 
 		const createdMonitors = await this.createMonitors(cleanedMonitors);

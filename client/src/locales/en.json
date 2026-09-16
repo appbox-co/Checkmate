@@ -750,7 +750,16 @@
 				},
 				"notifications": {
 					"description": "Select the notification channels you want to use",
-					"title": "Notifications"
+					"title": "Notifications",
+					"reminders": {
+						"label": "Repeat reminders",
+						"disabled": "Disabled",
+						"minutes_one": "Every {{count}} minute",
+						"minutes_other": "Every {{count}} minutes",
+						"hours_one": "Every {{count}} hour",
+						"hours_other": "Every {{count}} hours",
+						"description": "Repeat alerts on all selected channels while this monitor stays down or exceeds thresholds. Sent on the next check after the interval; stopped during pause or maintenance."
+					}
 				},
 				"tags": {
 					"description": "Select the tags you want to apply to this monitor",

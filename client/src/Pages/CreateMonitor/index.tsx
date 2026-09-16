@@ -57,6 +57,7 @@ import { FormNumberField } from "@/Components/inputs/forms/FormNumberField";
 import { FormTextField } from "@/Components/inputs/forms/FormTextField";
 import { FormRadioGroup } from "@/Components/inputs/forms/FormRadioGroupField";
 import { FormMultiSelectField } from "@/Components/inputs/forms/FormMultiSelectField";
+import { NotificationReminderIntervals } from "@/Types/Monitor";
 import { FormSelectField } from "@/Components/inputs/forms/FormSelectField";
 import { FormSliderField } from "@/Components/inputs/forms/FormSliderField";
 import { FormSwitchField } from "@/Components/inputs/forms/FormSwitchField";
@@ -471,6 +472,24 @@ const CreateMonitorPage = () => {
 		[t]
 	);
 
+	const reminderOptions = useMemo(
+		() =>
+			NotificationReminderIntervals.map((value) => ({
+				value,
+				label:
+					value === 0
+						? t("pages.createMonitor.form.notifications.reminders.disabled")
+						: value >= 3600000
+							? t("pages.createMonitor.form.notifications.reminders.hours", {
+									count: value / 3600000,
+								})
+							: t("pages.createMonitor.form.notifications.reminders.minutes", {
+									count: value / 60000,
+								}),
+			})),
+		[t]
+	);
+
 	const intervalOptions = useMemo(
 		() =>
 			MonitorIntervalOptions.map((option) => ({
@@ -863,10 +882,20 @@ const CreateMonitorPage = () => {
 						title={t("pages.createMonitor.form.notifications.title")}
 						subtitle={t("pages.createMonitor.form.notifications.description")}
 						rightContent={
-							<FormMultiSelectField
-								name="notifications"
-								options={notificationOptions}
-							/>
+							<Stack spacing={theme.spacing(LAYOUT.MD)}>
+								<FormMultiSelectField
+									name="notifications"
+									options={notificationOptions}
+								/>
+								<FormSelectField
+									name="notificationReminderInterval"
+									fieldLabel={t("pages.createMonitor.form.notifications.reminders.label")}
+									helperText={t(
+										"pages.createMonitor.form.notifications.reminders.description"
+									)}
+									options={reminderOptions}
+								/>
+							</Stack>
 						}
 					/>
 				)}

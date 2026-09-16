@@ -115,6 +115,10 @@ export const ProxyModes = ["inherit", "none", "custom"] as const;
 export type ProxyMode = (typeof ProxyModes)[number];
 export const DefaultProxyMode: ProxyMode = "inherit";
 
+export const NotificationReminderIntervals = [
+	0, 300000, 900000, 1800000, 3600000, 10800000, 21600000, 43200000, 86400000,
+] as const;
+
 export interface Monitor {
 	id: string;
 	userId: string;
@@ -140,6 +144,7 @@ export interface Monitor {
 	interval: number;
 	uptimePercentage?: number;
 	notifications: string[];
+	notificationReminderInterval?: (typeof NotificationReminderIntervals)[number];
 	tags: string[];
 	customUpCodes?: number[];
 	secret?: string;

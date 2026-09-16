@@ -119,6 +119,19 @@ export class NotificationsService implements INotificationsService {
 			return false;
 		}
 
+		if (decision.notificationReason === "reminder") {
+			// Reactors run asynchronously. Reserve the next interval atomically so
+			// overlapping evaluations/restarts cannot dispatch the same reminder twice.
+			const claimed = await this.monitorsRepository.claimNotificationReminder(
+				monitor.id,
+				monitor.teamId,
+				monitor.notificationReminderInterval ?? 0,
+				Date.now()
+			);
+			if (!claimed) return false;
+			monitor = claimed;
+		}
+
 		// Send notifications based on decision
 		return await this.sendNotifications(monitor, monitorStatusResponse, decision);
 	};

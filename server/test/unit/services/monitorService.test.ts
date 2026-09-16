@@ -2161,3 +2161,39 @@ describe("MonitorService — Docker TLS credentials", () => {
 		});
 	});
 });
+
+describe("editing reminder intervals", () => {
+	it.each([
+		[0, 300000],
+		[300000, 3600000],
+		[3600000, 0],
+	])("reschedules reminders when changing %i to %i", async (previous, interval) => {
+		const monitorsRepository = createMonitorsRepositoryMock();
+		(monitorsRepository.findById as jest.Mock).mockResolvedValue(makeMonitor({ notificationReminderInterval: previous }));
+		(monitorsRepository.updateById as jest.Mock).mockResolvedValue(makeMonitor());
+		const { service } = createService({ monitorsRepository });
+		const clock = jest.spyOn(Date, "now").mockReturnValue(1000000);
+		try {
+			await service.editMonitor({ teamId: TEAM_ID, monitorId: MONITOR_ID, body: { notificationReminderInterval: interval } });
+			expect(monitorsRepository.updateById).toHaveBeenCalledWith(
+				MONITOR_ID,
+				TEAM_ID,
+				expect.objectContaining({
+					notificationReminderInterval: interval,
+					nextNotificationReminderAt: interval > 0 ? 1000000 + interval : 0,
+				}),
+				expect.anything()
+			);
+		} finally {
+			clock.mockRestore();
+		}
+	});
+	it("preserves the deadline when saving the existing interval", async () => {
+		const monitorsRepository = createMonitorsRepositoryMock();
+		(monitorsRepository.findById as jest.Mock).mockResolvedValue(makeMonitor({ notificationReminderInterval: 300000 }));
+		(monitorsRepository.updateById as jest.Mock).mockResolvedValue(makeMonitor());
+		const { service } = createService({ monitorsRepository });
+		await service.editMonitor({ teamId: TEAM_ID, monitorId: MONITOR_ID, body: { name: "Renamed", notificationReminderInterval: 300000 } });
+		expect((monitorsRepository.updateById as jest.Mock).mock.calls[0][2]).not.toHaveProperty("nextNotificationReminderAt");
+	});
+});

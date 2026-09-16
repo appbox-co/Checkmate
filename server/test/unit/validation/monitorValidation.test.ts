@@ -799,3 +799,28 @@ describe("monitorValidation — Docker TLS credentials", () => {
 		});
 	});
 });
+
+describe("recurring reminder validation", () => {
+	const base = { name: "API", type: "http", url: "https://example.com" };
+	it("accepts reminder settings on create, edit and import", () => {
+		for (const interval of [0, 300000, 900000, 1800000, 3600000, 10800000, 21600000, 43200000, 86400000]) {
+			expect(createMonitorBodyValidation.parse({ ...base, notificationReminderInterval: interval }).notificationReminderInterval).toBe(interval);
+			expect(editMonitorBodyValidation.parse({ notificationReminderInterval: interval }).notificationReminderInterval).toBe(interval);
+			expect(
+				importMonitorsBodyValidation.parse({ monitors: [{ ...base, notificationReminderInterval: interval }] }).monitors[0]
+					?.notificationReminderInterval
+			).toBe(interval);
+		}
+	});
+	it.each([-1, 1, 300001, 300000.5, "300000", null, 86400001])("rejects invalid interval %j", (interval) => {
+		expect(createMonitorBodyValidation.safeParse({ ...base, notificationReminderInterval: interval }).success).toBe(false);
+		expect(editMonitorBodyValidation.safeParse({ notificationReminderInterval: interval }).success).toBe(false);
+		expect(importMonitorsBodyValidation.safeParse({ monitors: [{ ...base, notificationReminderInterval: interval }] }).success).toBe(false);
+	});
+	it("preserves legacy requests and strips client-supplied reminder deadlines", () => {
+		expect(editMonitorBodyValidation.parse({ name: "Renamed" }).notificationReminderInterval).toBeUndefined();
+		expect(importMonitorsBodyValidation.parse({ monitors: [base] }).monitors[0]?.notificationReminderInterval).toBe(0);
+		expect(createMonitorBodyValidation.parse({ ...base, nextNotificationReminderAt: 42 })).not.toHaveProperty("nextNotificationReminderAt");
+		expect(editMonitorBodyValidation.parse({ nextNotificationReminderAt: 42 })).not.toHaveProperty("nextNotificationReminderAt");
+	});
+});

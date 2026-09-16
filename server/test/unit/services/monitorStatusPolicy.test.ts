@@ -72,3 +72,47 @@ describe("MonitorStatusPolicy", () => {
 		expect(decision).toMatchObject({ shouldCreateIncident: false, shouldResolveIncident: false, shouldSendNotification: false });
 	});
 });
+
+describe("recurring reminder decisions", () => {
+	const policy = new MonitorStatusPolicy();
+	const dueMonitor = {
+		id: "m1",
+		isActive: true,
+		status: "down",
+		notifications: ["n1"],
+		notificationReminderInterval: 300000,
+		nextNotificationReminderAt: 600000,
+	};
+	const evaluate = (overrides: Record<string, unknown> = {}, timestamp = 600000) =>
+		policy.evaluate(
+			makeStatusChange({
+				monitor: { ...dueMonitor, ...overrides } as any,
+				timestamp,
+			})
+		);
+
+	it("sends once the interval is due without creating another incident", () => {
+		expect(evaluate()).toMatchObject({
+			shouldSendNotification: true,
+			notificationReason: "reminder",
+			shouldCreateIncident: false,
+			shouldResolveIncident: false,
+		});
+		expect(evaluate({}, 599999).shouldSendNotification).toBe(false);
+	});
+
+	it("also reminds for ongoing hardware threshold breaches", () => {
+		expect(evaluate({ status: "breached" }).notificationReason).toBe("reminder");
+	});
+
+	it.each(["up", "paused", "maintenance", "initializing"])("does not remind in %s state", (status) => {
+		expect(evaluate({ status }).shouldSendNotification).toBe(false);
+	});
+
+	it.each([{ notificationReminderInterval: 0 }, { notificationReminderInterval: undefined }, { notifications: [] }, { isActive: false }])(
+		"does not remind when disabled or ineligible: %j",
+		(overrides) => {
+			expect(evaluate(overrides).shouldSendNotification).toBe(false);
+		}
+	);
+});

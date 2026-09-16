@@ -4,6 +4,7 @@ import { GeoContinents } from "@/Types/GeoCheck";
 import {
 	DnsRecordTypes,
 	HttpMethods,
+	NotificationReminderIntervals,
 	PageSpeedStrategies,
 	ProxyModes,
 	type MonitorType,
@@ -30,6 +31,9 @@ const baseSchema = z.object({
 		.min(15000, "Interval must be at least 15 seconds")
 		.register(monitorStepRegistry, { step: 1 }),
 	notifications: z.array(z.string()).register(monitorStepRegistry, { step: 1 }),
+	notificationReminderInterval: z
+		.literal(NotificationReminderIntervals)
+		.register(monitorStepRegistry, { step: 1 }),
 	tags: z.array(z.string()).register(monitorStepRegistry, { step: 1 }),
 	statusWindowSize: z
 		.number({ message: "Status window size is required" })

@@ -33,6 +33,11 @@ export class NotificationMessageBuilder implements INotificationMessageBuilder {
 		const type = this.determineNotificationType(decision, monitor);
 		const severity = this.determineSeverity(type);
 		const content = this.buildContent(type, monitor, monitorStatusResponse);
+		if (decision.notificationReason === "reminder") {
+			content.title = `Reminder: ${content.title}`;
+			content.summary =
+				monitor.status === "down" ? `Monitor "${monitor.name}" is still down.` : `Monitor "${monitor.name}" still has exceeded thresholds.`;
+		}
 
 		return {
 			type,
@@ -60,7 +65,7 @@ export class NotificationMessageBuilder implements INotificationMessageBuilder {
 		}
 
 		// Threshold breach (only if not down)
-		if (decision.notificationReason === "threshold_breach") {
+		if (decision.notificationReason === "threshold_breach" || monitor.status === "breached") {
 			return "threshold_breach";
 		}
 

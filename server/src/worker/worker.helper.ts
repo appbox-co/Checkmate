@@ -22,7 +22,7 @@ export interface MonitorActionDecision {
 	shouldResolveIncident: boolean;
 	shouldSendNotification: boolean;
 	incidentReason: "status_down" | "threshold_breach" | null;
-	notificationReason: "status_change" | "threshold_breach" | null;
+	notificationReason: "status_change" | "threshold_breach" | "reminder" | null;
 	thresholdBreaches?: {
 		cpu?: boolean;
 		memory?: boolean;

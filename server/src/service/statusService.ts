@@ -162,6 +162,16 @@ export class StatusService implements IStatusService {
 		return { nextStatus, transitioned, breaches, nextCounters };
 	};
 
+	private reminderSchedule = (monitor: Monitor, status: MonitorStatus, statusChanged: boolean): Partial<Monitor> => {
+		if (!statusChanged) return {};
+		const interval = monitor.notificationReminderInterval ?? 0;
+		return {
+			// Set the first deadline with the status transition, before the non-blocking
+			// notification reactor runs. Recovery clears the previous outage's schedule.
+			nextNotificationReminderAt: interval > 0 && (status === "down" || status === "breached") ? Date.now() + interval : 0,
+		};
+	};
+
 	updateMonitorStatus = async (
 		statusResponse: MonitorStatusResponse<
 			| PingStatusPayload
@@ -208,6 +218,7 @@ export class StatusService implements IStatusService {
 
 			// Not enough data points yet — record the check and return
 			if (projectedWindow.length < monitor.statusWindowSize) {
+				Object.assign(patch, this.reminderSchedule(monitor, newStatus, statusChanged));
 				const updated = await this.monitorsRepository.updateStatusWindowAndChecks(
 					monitor.id,
 					monitor.teamId,
@@ -269,6 +280,7 @@ export class StatusService implements IStatusService {
 			}
 
 			patch.status = newStatus;
+			Object.assign(patch, this.reminderSchedule(monitor, newStatus, statusChanged));
 
 			// Single atomic write: push arrays + set status/counters
 			const updated = await this.monitorsRepository.updateStatusWindowAndChecks(
@@ -286,7 +298,7 @@ export class StatusService implements IStatusService {
 				statusChanged,
 				prevStatus,
 				code,
-				timestamp: new Date().getTime(),
+				timestamp: Date.now(),
 				thresholdBreaches,
 			};
 		} catch (error: unknown) {

@@ -52,6 +52,22 @@ export class InMemoryMonitorsRepository implements IMonitorsRepository {
 		return monitor ? { ...monitor } : null;
 	}
 
+	async claimNotificationReminder(monitorId: string, teamId: string, interval: number, now: number): Promise<Monitor | null> {
+		const monitor = this.monitors.find((m) => m.id === monitorId && m.teamId === teamId);
+		if (
+			!monitor ||
+			!monitor.isActive ||
+			!["down", "breached"].includes(monitor.status) ||
+			interval <= 0 ||
+			monitor.notificationReminderInterval !== interval ||
+			!monitor.notifications.length ||
+			(monitor.nextNotificationReminderAt ?? 0) > now
+		)
+			return null;
+		monitor.nextNotificationReminderAt = now + interval;
+		return { ...monitor };
+	}
+
 	async updateById(monitorId: string, teamId: string, updates: Partial<Monitor>): Promise<Monitor> {
 		const index = this.monitors.findIndex((m) => m.id === monitorId && m.teamId === teamId);
 		if (index === -1) {

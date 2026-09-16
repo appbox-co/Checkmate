@@ -62,6 +62,9 @@ export type DnsRecordType = (typeof DnsRecordTypes)[number];
 export const HttpMethods = ["GET", "HEAD"] as const;
 export type HttpMethod = (typeof HttpMethods)[number];
 
+// Milliseconds; zero preserves status-change-only notifications.
+export const NotificationReminderIntervals = [0, 300000, 900000, 1800000, 3600000, 10800000, 21600000, 43200000, 86400000] as const;
+
 export const MAX_RECENT_CHECKS = 50;
 
 export interface Monitor {
@@ -89,6 +92,8 @@ export interface Monitor {
 	interval: number;
 	uptimePercentage?: number;
 	notifications: string[];
+	notificationReminderInterval?: number;
+	nextNotificationReminderAt?: number; // epoch ms, persisted before delivery
 	tags: string[];
 	customUpCodes: HttpStatusCode[];
 	secret?: string;

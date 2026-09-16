@@ -9,6 +9,7 @@ import {
 	MonitorMatchMethods,
 	MonitorStatuses,
 	MonitorTypes,
+	NotificationReminderIntervals,
 	PageSpeedStrategies,
 	ProxyModes,
 } from "@/domain/monitors/monitor.type.js";
@@ -18,6 +19,8 @@ import { DOCKER_LOG_PAGE_DEFAULT, DOCKER_LOG_PAGE_MAX } from "@/domain/docker/do
 import { isDockerSocketUrl, isDockerTlsUrl } from "@/utils/dockerHost.js";
 import { X509Certificate } from "node:crypto";
 import { keyMatchesCertificate, parseCertificates, parsePrivateKey } from "@/utils/pem.js";
+
+const notificationReminderInterval = z.literal(NotificationReminderIntervals);
 
 const httpStatusCode = z.number().refine((code) => HttpStatusCodeSet.has(code), { message: "Must be a valid HTTP status code" });
 
@@ -198,6 +201,7 @@ export const createMonitorBodyValidation = z
 		diskAlertThreshold: z.number().optional(),
 		tempAlertThreshold: z.number().optional(),
 		notifications: z.array(z.string()).optional(),
+		notificationReminderInterval: notificationReminderInterval.optional(),
 		tags: z.array(z.string()).optional(),
 		customUpCodes: z.array(httpStatusCode).default([]),
 		secret: z.string().optional(),
@@ -238,6 +242,7 @@ export const editMonitorBodyValidation = z
 		description: z.union([z.string(), z.literal("")]).optional(),
 		interval: z.number().optional(),
 		notifications: z.array(z.string()).optional(),
+		notificationReminderInterval: notificationReminderInterval.optional(),
 		tags: z.array(z.string()).optional(),
 		customUpCodes: z.array(httpStatusCode).optional(),
 		secret: z.string().optional(),
@@ -323,6 +328,7 @@ const importedMonitorSchema = z
 		interval: z.number().default(60000),
 		uptimePercentage: z.number().optional(),
 		notifications: z.array(z.string()).default([]),
+		notificationReminderInterval: notificationReminderInterval.default(0),
 		tags: z.array(z.string()).default([]),
 		customUpCodes: z.array(httpStatusCode).default([]),
 		secret: z.string().optional(),
@@ -417,6 +423,8 @@ export const monitorResponseSchema = z
 		matchMethod: z.enum(MonitorMatchMethods).optional(),
 		method: z.enum(HttpMethods),
 		notifications: z.array(z.string()),
+		notificationReminderInterval: notificationReminderInterval,
+		nextNotificationReminderAt: z.number(),
 		tags: z.array(z.string()),
 		customUpCodes: z.array(httpStatusCode).optional(),
 		secret: z.string().optional(),
