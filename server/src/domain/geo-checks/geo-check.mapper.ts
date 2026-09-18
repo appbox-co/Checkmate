@@ -32,6 +32,8 @@ export const toGeoCheckState = (value?: GeoCheckState): GeoCheckState | undefine
 	value && {
 		configuration: value.configuration,
 		checkedAt: value.checkedAt,
+		lastFullCheckAt: value.lastFullCheckAt,
+		pendingLocations: value.pendingLocations && [...value.pendingLocations],
 		failures: value.failures.map(failure),
 		outageLocations: value.outageLocations.map(failure),
 	};
@@ -39,5 +41,8 @@ export const toGeoCheckObservation = (value?: GeoCheckObservation): GeoCheckObse
 	value && {
 		configuration: value.configuration,
 		checkedAt: value.checkedAt,
+		fullCheckAt: value.fullCheckAt,
+		recoveryOnly: value.recoveryOnly,
+		pendingLocations: value.pendingLocations && [...value.pendingLocations],
 		results: value.results.map(result),
 	};

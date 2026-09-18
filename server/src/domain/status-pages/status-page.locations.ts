@@ -21,11 +21,11 @@ export const publicStatusLocations = (monitor: Monitor, history: PublicGeoHistor
 					? "unknown"
 					: failure
 						? "down"
-						: stale || !latest
+						: state?.pendingLocations?.includes(continent) || stale || !latest
 							? "unknown"
 							: latest.status
 								? "up"
-								: "down";
+								: "unknown"; // A raw first failure is still awaiting confirmation.
 		return {
 			continent,
 			status,

@@ -78,7 +78,7 @@ describe("JobScheduler.init (scheduler-only primary reconcile)", () => {
 	});
 
 	it("seeds a geo-check row only for geo-enabled monitors", async () => {
-		const geo = await seedMonitor({ name: "geo", geoCheckEnabled: true });
+		const geo = await seedMonitor({ name: "geo", interval: 120000, geoCheckEnabled: true, geoCheckInterval: 900000 });
 		const plain = await seedMonitor({ name: "plain", geoCheckEnabled: false });
 
 		const scheduler = makeScheduler();
@@ -88,6 +88,9 @@ describe("JobScheduler.init (scheduler-only primary reconcile)", () => {
 		const ids = await idsOf();
 		expect(ids).toContain(`geo-check:${geo.id}`);
 		expect(ids).not.toContain(`geo-check:${plain.id}`);
+		expect((await JobModel.findById("geo-check:" + geo.id))?.intervalMs).toBe(60000);
+		expect((await JobModel.findById("check:" + geo.id))?.intervalMs).toBe(120000);
+		expect((await MonitorModel.findById(geo.id))?.geoCheckInterval).toBe(900000);
 	});
 
 	it("registers the primary in the queue_workers registry", async () => {

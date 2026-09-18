@@ -1,4 +1,4 @@
-import { geoCheckToCheck } from "@/domain/geo-checks/geo-check.status.js";
+import { geoCheckToCheck, getGeoCheckState } from "@/domain/geo-checks/geo-check.status.js";
 import { Monitor } from "@/domain/monitors/monitor.type.js";
 import { MonitorEvaluation } from "@/worker/worker.interface.js";
 import { IMaintenanceWindowsRepository } from "@/domain/maintenance-windows/maintenance-window.repository.interface.js";
@@ -8,6 +8,8 @@ import { IBufferService } from "@/service/bufferService.js";
 import { AppError } from "@/utils/AppError.js";
 import { supportsGeoCheck } from "@/domain/monitors/monitor.type.js";
 import { IGeoChecksService } from "@/domain/geo-checks/geo-check.service.js";
+
+import type { GeoContinent } from "@/domain/geo-checks/geo-check.type.js";
 
 const SERVICE_NAME = "CheckPipeline";
 
@@ -76,8 +78,17 @@ export class GeoChecksPipeline implements ICheckPipeline {
 		// Step 2: Record
 		// ****************************
 
-		// Step 2a: Build geo check, return null if fail
-		const geoCheck = await this.geoChecksService.buildGeoCheck(monitor);
+		const state = getGeoCheckState(monitor);
+		const startedAt = new Date(Date.now()).toISOString();
+		const lastFullCheckAt = state?.lastFullCheckAt ?? state?.checkedAt;
+		const fullCheck = !lastFullCheckAt || Date.now() - Date.parse(lastFullCheckAt) >= (monitor.geoCheckInterval ?? 900000);
+		const failedLocations = new Set(state?.failures.map((failure) => failure.location.continent) ?? []);
+		const locations = monitor.geoCheckLocations.filter(
+			(continent) => fullCheck || failedLocations.has(continent) || state?.pendingLocations?.includes(continent)
+		);
+		if (!locations.length) return null;
+
+		const geoCheck = await this.geoChecksService.buildGeoCheck(monitor, locations);
 		if (!geoCheck) {
 			this.logger.warn({
 				message: `No geo check could be built for monitor ${monitor.id}`,
@@ -87,11 +98,36 @@ export class GeoChecksPipeline implements ICheckPipeline {
 			return null;
 		}
 
-		// Step 2b: Add  to buffer
 		this.bufferService.addGeoCheckToBuffer(geoCheck);
-		// Reuse the existing serialized evaluation job for this monitor. Local and
-		// geographic producers never race to write status or dispatch duplicate alerts.
-		this.bufferService.addToBuffer(geoCheckToCheck(monitor, geoCheck));
+		let results = geoCheck.results.filter((result) => locations.includes(result.location.continent));
+		const retryLocations = [
+			...new Set(
+				results.filter((result) => !result.status && !failedLocations.has(result.location.continent)).map((result) => result.location.continent)
+			),
+		];
+		const pendingLocations: GeoContinent[] = [];
+		if (retryLocations.length) {
+			// A new outage needs a second conclusive failure from the same region.
+			const retry = await this.geoChecksService.buildGeoCheck(monitor, retryLocations);
+			if (retry) this.bufferService.addGeoCheckToBuffer(retry);
+			results = results.filter((result) => !retryLocations.includes(result.location.continent));
+			for (const continent of retryLocations) {
+				const confirmed = retry?.results.filter((result) => result.location.continent === continent) ?? [];
+				if (confirmed.length) results.push(...confirmed);
+				else pendingLocations.push(continent);
+			}
+		}
+
+		// Timestamp the final decision after the retry so local checks evaluated while
+		// waiting cannot cause this observation to be skipped as older history.
+		const completedAt = new Date(Date.now()).toISOString();
+		this.bufferService.addToBuffer(
+			geoCheckToCheck(
+				monitor,
+				{ ...geoCheck, results, createdAt: completedAt, updatedAt: completedAt },
+				{ ...(fullCheck ? { fullCheckAt: startedAt } : { recoveryOnly: true }), pendingLocations }
+			)
+		);
 
 		this.logger.debug({
 			message: `Geo check job executed for monitor ${monitor.id}`,

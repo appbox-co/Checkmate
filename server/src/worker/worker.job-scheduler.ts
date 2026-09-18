@@ -56,7 +56,8 @@ export class JobScheduler implements IJobScheduler {
 		...this.toCheckJob(monitor, now, immediate),
 		id: jobId("geo-check", monitor.id),
 		type: "geo-check",
-		intervalMs: monitor.geoCheckInterval!,
+		// The pipeline probes healthy regions only when their configured interval is due.
+		intervalMs: Math.min(monitor.geoCheckInterval ?? 900000, 60000),
 	});
 
 	protected toCleanupJob = (type: "cleanup-orphaned" | "cleanup-retention", now: number): JobSeed => ({

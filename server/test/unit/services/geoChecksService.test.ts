@@ -18,11 +18,10 @@ const makeMonitor = (overrides?: Partial<Monitor>): Monitor =>
 	}) as Monitor;
 
 const makeGeoResult = (overrides?: Partial<GeoCheckResult>): GeoCheckResult => ({
-	continent: "NA",
-	country: "US",
-	city: "New York",
-	status: "up",
-	responseTime: 50,
+	location: { continent: "NA", country: "US", city: "New York", region: "", state: "", longitude: 0, latitude: 0 },
+	status: true,
+	statusCode: 200,
+	timings: { total: 50, dns: 0, tcp: 0, tls: 0, firstByte: 0, download: 0 },
 	...overrides,
 });
 
@@ -59,9 +58,28 @@ describe("GeoChecksService", () => {
 			expect(result).not.toBeNull();
 			expect(result!.metadata).toEqual({ monitorId: "mon-1", teamId: "team-1", type: "http" });
 			expect(result!.results).toHaveLength(1);
-			expect(result!.results[0].continent).toBe("NA");
+			expect(result!.results[0].location.continent).toBe("NA");
 			expect(result!.id).toBeDefined();
 			expect(result!.expiry).toBeDefined();
+		});
+
+		it("limits recovery measurements and returned results to selected configured regions", async () => {
+			const { service, globalPingService } = createService();
+			const na = makeGeoResult();
+			const eu = makeGeoResult({ location: { ...na.location, continent: "EU" } });
+			globalPingService.pollForResults.mockResolvedValue([na, eu]);
+			const monitor = makeMonitor();
+			const check = await service.buildGeoCheck(monitor, ["EU", "AS", "EU"]);
+			expect(globalPingService.createMeasurement).toHaveBeenCalledWith("http", monitor.url, ["EU"], "GET");
+			expect(check?.results).toEqual([eu]);
+			expect(monitor.geoCheckLocations).toEqual(["NA", "EU"]);
+		});
+
+		it("does not request probes outside the configured regions or for an empty subset", async () => {
+			const { service, globalPingService } = createService();
+			expect(await service.buildGeoCheck(makeMonitor(), ["AS"])).toBeNull();
+			expect(await service.buildGeoCheck(makeMonitor(), [])).toBeNull();
+			expect(globalPingService.createMeasurement).not.toHaveBeenCalled();
 		});
 
 		it("returns null and warns when monitor has no URL", async () => {

@@ -40,6 +40,10 @@ export interface GeoCheckObservation {
 	configuration: string;
 	checkedAt: string;
 	results: GeoCheckResult[];
+	// Absent on legacy observations, which were always full sweeps.
+	fullCheckAt?: string;
+	recoveryOnly?: boolean;
+	pendingLocations?: GeoContinent[];
 }
 
 export interface GeoCheckFailure {
@@ -51,6 +55,8 @@ export interface GeoCheckFailure {
 export interface GeoCheckState {
 	configuration: string;
 	checkedAt?: string; // absent until the first conclusive geographic observation
+	lastFullCheckAt?: string;
+	pendingLocations?: GeoContinent[];
 	failures: GeoCheckFailure[];
 	// Retain affected locations until the combined local/geographic outage recovers.
 	outageLocations: GeoCheckFailure[];

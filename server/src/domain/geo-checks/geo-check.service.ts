@@ -12,7 +12,7 @@ import { DateRange } from "@/types/query.js";
 const SERVICE_NAME = "GeoChecksService";
 
 export interface IGeoChecksService {
-	buildGeoCheck(monitor: Monitor): Promise<GeoCheck | null>;
+	buildGeoCheck(monitor: Monitor, selectedLocations?: GeoContinent[]): Promise<GeoCheck | null>;
 	createGeoChecks(geoChecks: GeoCheck[]): Promise<GeoCheck[]>;
 	getGeoChecksByMonitor(args: {
 		monitorId: string;
@@ -50,7 +50,7 @@ export class GeoChecksService implements IGeoChecksService {
 		this.monitorsRepository = monitorsRepository;
 	}
 
-	async buildGeoCheck(monitor: Monitor): Promise<GeoCheck | null> {
+	async buildGeoCheck(monitor: Monitor, selectedLocations?: GeoContinent[]): Promise<GeoCheck | null> {
 		try {
 			if (!monitor.url) {
 				this.logger.warn({
@@ -72,13 +72,13 @@ export class GeoChecksService implements IGeoChecksService {
 				return null;
 			}
 
-			// Step 1: Create measurement request
-			const measurementId = await this.globalPingService.createMeasurement(
-				monitor.type,
-				monitor.url,
-				monitor.geoCheckLocations,
-				monitor.method ?? "GET"
+			const locations = [...new Set(selectedLocations ?? monitor.geoCheckLocations)].filter((continent) =>
+				monitor.geoCheckLocations!.includes(continent)
 			);
+			if (!locations.length) return null;
+
+			// Step 1: Create measurement request
+			const measurementId = await this.globalPingService.createMeasurement(monitor.type, monitor.url, locations, monitor.method ?? "GET");
 
 			if (!measurementId) {
 				// GlobalPing API is down, skip this check
@@ -91,7 +91,9 @@ export class GeoChecksService implements IGeoChecksService {
 			}
 
 			// Step 2: Poll for results
-			const results = await this.globalPingService.pollForResults(measurementId, undefined, monitor.customUpCodes ?? []);
+			const results = (await this.globalPingService.pollForResults(measurementId, undefined, monitor.customUpCodes ?? [])).filter((result) =>
+				locations.includes(result.location.continent)
+			);
 
 			if (results.length === 0) {
 				// No conclusive target results (provider errors or unavailable probes)

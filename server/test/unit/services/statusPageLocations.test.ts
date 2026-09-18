@@ -36,6 +36,17 @@ describe("public geographic status", () => {
 		expect(result[1]).toMatchObject({ stale: true, recentChecks: [] });
 		expect(result[0]).not.toHaveProperty("dailyChecks");
 	});
+	it("shows an unconfirmed failure as awaiting confirmation, while retaining the diagnostic history", () => {
+		const pending = structuredClone(monitor);
+		pending.geoCheckState!.pendingLocations = ["EU"];
+		expect(publicStatusLocations(pending, history, false, now)[0].status).toBe("unknown");
+		const rawFailure = structuredClone(history);
+		rawFailure[0].recentChecks[0].status = false;
+		const location = publicStatusLocations(monitor, rawFailure, false, now)[0];
+		expect(location.status).toBe("unknown");
+		expect(location.recentChecks[0].status).toBe(false);
+	});
+
 	it("does not carry a green status indefinitely after probes stop returning results", () => {
 		expect(publicStatusLocations(monitor, history, true, new Date("2026-09-18T13:00:00Z"))[0]).toMatchObject({
 			status: "unknown",

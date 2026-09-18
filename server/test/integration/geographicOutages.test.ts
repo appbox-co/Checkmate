@@ -81,6 +81,7 @@ const seed = async (overrides: Partial<Monitor> = {}) => {
 		statusWindowThreshold: 60,
 		geoCheckEnabled: true,
 		geoCheckLocations: ["EU", "NA"],
+		geoCheckInterval: 900000,
 		notifications: [notificationId],
 		notificationReminderInterval: interval,
 		...overrides,
@@ -137,6 +138,7 @@ const runtime = () => {
 	};
 	const drain = async (id: string) => {
 		await buffer.flushBuffer();
+		await buffer.flushGeoBuffer();
 		const monitor = await repo.findById(id, teamId);
 		const unevaluated = await checks.findUnevaluatedByMonitorId(id, monitor.lastEvaluatedAt);
 		const evaluations = [];
@@ -173,6 +175,96 @@ const runtime = () => {
 };
 
 describe("geographic outages through persisted checks and the normal evaluator", () => {
+	it("discards a transient first failure after an immediate successful retry, retaining both raw samples", async () => {
+		const id = await seed();
+		const r = runtime();
+		const monitor = await r.repo.findById(id, teamId);
+		r.geoService.buildGeoCheck
+			.mockImplementationOnce(async () => observation(monitor, [result("EU", false), result("NA", true)]))
+			.mockImplementationOnce(async () => observation(monitor, [result("EU", true)]));
+		await r.pipeline.run(monitor);
+		await r.drain(id);
+		expect(r.geoService.buildGeoCheck.mock.calls.map((call) => call[1])).toEqual([["EU", "NA"], ["EU"]]);
+		expect(r.geoService.createGeoChecks.mock.calls.flatMap((call) => call[0])).toHaveLength(2);
+		expect((await r.repo.findById(id, teamId)).status).toBe("up");
+		expect((await r.checks.findUnevaluatedByMonitorId(id, 0)).map((check) => check.status)).toEqual([true]);
+		expect(await IncidentModel.countDocuments({ monitorId: id })).toBe(0);
+		expect(r.messages()).toEqual([]);
+	});
+
+	it("persists an inconclusive retry as pending, resumes only that region after restart, and preserves the full-sweep cadence", async () => {
+		const id = await seed();
+		const first = runtime();
+		const monitor = await first.repo.findById(id, teamId);
+		first.geoService.buildGeoCheck
+			.mockImplementationOnce(async () => observation(monitor, [result("EU", false), result("NA", true)]))
+			.mockResolvedValueOnce(null);
+		await first.pipeline.run(monitor);
+		await first.drain(id);
+		const pending = await first.repo.findById(id, teamId);
+		expect(pending.status).toBe("up");
+		expect(pending.geoCheckState?.pendingLocations).toEqual(["EU"]);
+		expect(pending.geoCheckState?.failures).toEqual([]);
+		const lastFullCheckAt = pending.geoCheckState?.lastFullCheckAt;
+		expect(lastFullCheckAt).toBeDefined();
+
+		now += 60000;
+		const restarted = runtime();
+		await restarted.geo(id, [result("EU", true)]);
+		expect(restarted.geoService.buildGeoCheck.mock.calls[0][1]).toEqual(["EU"]);
+		const recovered = await restarted.repo.findById(id, teamId);
+		expect(recovered.geoCheckState).toMatchObject({ pendingLocations: [], failures: [], lastFullCheckAt });
+		expect(first.messages()).toEqual([]);
+		expect(restarted.messages()).toEqual([]);
+		expect(await IncidentModel.countDocuments({ monitorId: id })).toBe(0);
+	});
+
+	it("checks confirmed failures every minute, skips healthy regions, and still performs the next full sweep on time", async () => {
+		const id = await seed();
+		const r = runtime();
+		await r.geo(id, [result("EU", false), result("NA", true)]);
+		expect(r.geoService.buildGeoCheck.mock.calls.map((call) => call[1])).toEqual([["EU", "NA"], ["EU"]]);
+		const start = (await r.repo.findById(id, teamId)).geoCheckState!.lastFullCheckAt!;
+		now += 60000;
+		await r.geo(id, [result("EU", false)]);
+		expect(r.geoService.buildGeoCheck).toHaveBeenCalledTimes(3);
+		expect(r.geoService.buildGeoCheck.mock.calls[2][1]).toEqual(["EU"]);
+		expect((await r.repo.findById(id, teamId)).geoCheckState!.lastFullCheckAt).toBe(start);
+		now += 60000;
+		await r.geo(id, [result("EU", true)]);
+		expect((await r.repo.findById(id, teamId)).status).toBe("up");
+		const calls = r.geoService.buildGeoCheck.mock.calls.length;
+		now += 60000;
+		await r.geo(id, [result("EU", true), result("NA", true)]);
+		expect(r.geoService.buildGeoCheck).toHaveBeenCalledTimes(calls);
+		now = Date.parse(start) + 900000;
+		await r.geo(id, [result("EU", true), result("NA", true)]);
+		expect(r.geoService.buildGeoCheck.mock.calls.at(-1)![1]).toEqual(["EU", "NA"]);
+		expect(r.messages()).toHaveLength(2);
+		expect(await IncidentModel.countDocuments({ monitorId: id })).toBe(1);
+		expect(await r.incidents.findActiveByMonitorId(id, teamId)).toBeNull();
+	});
+
+	it("evaluates the confirmed retry after local checks completed while the retry was in flight", async () => {
+		const id = await seed();
+		const r = runtime();
+		const monitor = await r.repo.findById(id, teamId);
+		r.geoService.buildGeoCheck
+			.mockImplementationOnce(async () => observation(monitor, [result("EU", false)]))
+			.mockImplementationOnce(async () => {
+				now += 2000;
+				await r.local(id, true);
+				now += 2000;
+				return observation(monitor, [result("EU", false)]);
+			});
+		await r.pipeline.run(monitor);
+		await r.drain(id);
+		expect((await r.repo.findById(id, teamId)).status).toBe("down");
+		expect(r.messages()).toHaveLength(1);
+		expect(r.messages()[0].content.summary).toContain("Frankfurt");
+		expect(await IncidentModel.countDocuments({ monitorId: id })).toBe(1);
+	});
+
 	it("opens one incident when one region fails, preserves it across local successes/restart, reminds with location and recovers", async () => {
 		const id = await seed();
 		const first = runtime();
@@ -261,7 +353,7 @@ describe("geographic outages through persisted checks and the normal evaluator",
 		expect((await r.evaluate(id, check)).decision.shouldSendNotification).toBe(false);
 		expect(r.messages()).toHaveLength(0);
 	});
-	it("initializes down from one failing probe without filling the local status window", async () => {
+	it("initializes down from a confirmed failing region without filling the local status window", async () => {
 		const id = await seed({ status: "initializing", statusWindow: [] });
 		const r = runtime();
 		const [failed] = await r.geo(id, [result("EU", false)]);

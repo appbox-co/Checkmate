@@ -33,10 +33,12 @@ export const geoFailureMessage = (failures: GeoCheckFailure[]): string =>
 export const mergeGeoObservation = (monitor: Monitor, observation: GeoCheckObservation): GeoCheckState => {
 	const previous = getGeoCheckState(monitor);
 	const failures = [...(previous?.failures ?? [])];
+	const pending = new Set(previous?.pendingLocations ?? []);
 	for (const continent of monitor.geoCheckLocations ?? []) {
 		const results = observation.results.filter((result) => result.location.continent === continent);
 		// A missing/offline probe is not evidence of recovery. Any failed probe wins.
 		if (!results.length) continue;
+		pending.delete(continent);
 		for (let index = failures.length - 1; index >= 0; index--) {
 			if (failures[index]?.location.continent === continent) failures.splice(index, 1);
 		}
@@ -50,14 +52,29 @@ export const mergeGeoObservation = (monitor: Monitor, observation: GeoCheckObser
 		if (index >= 0) outageLocations.splice(index, 1);
 		outageLocations.push(failure);
 	}
-	return { configuration: observation.configuration, checkedAt: observation.checkedAt, failures, outageLocations };
+	for (const continent of observation.pendingLocations ?? []) pending.add(continent);
+	return {
+		configuration: observation.configuration,
+		checkedAt: observation.checkedAt,
+		lastFullCheckAt: observation.recoveryOnly
+			? (previous?.lastFullCheckAt ?? previous?.checkedAt)
+			: (observation.fullCheckAt ?? observation.checkedAt),
+		pendingLocations: [...pending].filter((continent) => monitor.geoCheckLocations?.includes(continent)),
+		failures,
+		outageLocations,
+	};
 };
 
-export const geoCheckToCheck = (monitor: Monitor, geoCheck: GeoCheck): Check => {
+export const geoCheckToCheck = (
+	monitor: Monitor,
+	geoCheck: GeoCheck,
+	metadata: Pick<GeoCheckObservation, "fullCheckAt" | "recoveryOnly" | "pendingLocations"> = {}
+): Check => {
 	const observation: GeoCheckObservation = {
 		configuration: geoCheckConfiguration(monitor),
 		checkedAt: geoCheck.createdAt,
 		results: geoCheck.results,
+		...metadata,
 	};
 	const failed = mergeGeoObservation(monitor, observation).failures;
 	const localDown = (monitor.geoCheckLocalStatus ?? monitor.status) === "down";

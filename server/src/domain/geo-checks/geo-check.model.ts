@@ -83,6 +83,9 @@ export const geoCheckObservationSchema = new Schema<GeoCheckObservation>(
 	{
 		configuration: { type: String, required: true },
 		checkedAt: { type: String, required: true },
+		fullCheckAt: { type: String, default: undefined },
+		recoveryOnly: { type: Boolean, default: undefined },
+		pendingLocations: { type: [{ type: String, enum: GeoContinents }], default: undefined },
 		results: { type: [geoCheckResultSchema], default: [] },
 	},
 	{ _id: false }
@@ -101,6 +104,8 @@ export const geoCheckStateSchema = new Schema<GeoCheckState>(
 	{
 		configuration: { type: String, required: true },
 		checkedAt: { type: String, default: undefined },
+		lastFullCheckAt: { type: String, default: undefined },
+		pendingLocations: { type: [{ type: String, enum: GeoContinents }], default: undefined },
 		failures: { type: [geoCheckFailureSchema], default: [] },
 		outageLocations: { type: [geoCheckFailureSchema], default: [] },
 	},
