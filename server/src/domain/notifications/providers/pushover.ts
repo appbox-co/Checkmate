@@ -5,6 +5,8 @@ import type { NotificationMessage } from "@/domain/notifications/notification.ty
 import { getTestMessage } from "@/domain/notifications/providers/utils.js";
 import got from "got";
 
+const EMERGENCY_PRIORITY_OPTIONS = { priority: 2, retry: 60, expire: 1800 } as const;
+
 export class PushoverProvider extends NotificationProvider {
 	async sendTestAlert(notification: Partial<Notification>): Promise<boolean> {
 		if (!notification.address || !notification.accessToken) {
@@ -42,6 +44,7 @@ export class PushoverProvider extends NotificationProvider {
 		}
 
 		const text = this.buildPushoverText(message);
+		const isEmergency = message.type === "monitor_down" || message.type === "threshold_breach";
 
 		try {
 			await got.post("https://api.pushover.net/1/messages.json", {
@@ -50,6 +53,7 @@ export class PushoverProvider extends NotificationProvider {
 					user: notification.address,
 					message: text,
 					title: message.content.title,
+					...(isEmergency ? EMERGENCY_PRIORITY_OPTIONS : { priority: 0 }),
 				},
 				...this.gotRequestOptions(),
 			});

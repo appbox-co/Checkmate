@@ -31,6 +31,10 @@ describe("PushoverProvider", () => {
 				"https://api.pushover.net/1/messages.json",
 				expect.objectContaining({ form: expect.objectContaining({ token: "token-abc", user: "https://hooks.example.com/webhook" }) })
 			);
+			const form = mockGotPost.mock.calls[0][1].form;
+			expect(form.priority ?? 0).toBe(0);
+			expect(form).not.toHaveProperty("retry");
+			expect(form).not.toHaveProperty("expire");
 		});
 
 		it("returns false when address is missing", async () => {
@@ -57,6 +61,26 @@ describe("PushoverProvider", () => {
 	});
 
 	describe("sendMessage", () => {
+		it.each([
+			["monitor_down", "status_change"],
+			["monitor_down", "reminder"],
+			["threshold_breach", "threshold_breach"],
+			["threshold_breach", "reminder"],
+		] as const)("sends %s (%s) with emergency priority and bounded retries", async (type, notificationReason) => {
+			const message = makeMessage({ type, metadata: { teamId: "team-1", notificationReason } });
+			expect(await createProvider().provider.sendMessage(makeNotification(), message)).toBe(true);
+			expect(mockGotPost.mock.calls[0][1].form).toEqual(expect.objectContaining({ priority: 2, retry: 60, expire: 1800 }));
+		});
+
+		it.each(["monitor_up", "threshold_resolved", "test"] as const)("sends %s with normal priority and no emergency retries", async (type) => {
+			const message = makeMessage({ type });
+			expect(await createProvider().provider.sendMessage(makeNotification(), message)).toBe(true);
+			const form = mockGotPost.mock.calls[0][1].form;
+			expect(form.priority).toBe(0);
+			expect(form).not.toHaveProperty("retry");
+			expect(form).not.toHaveProperty("expire");
+		});
+
 		it("sends plain text message and returns true", async () => {
 			const { provider } = createProvider();
 			expect(await provider.sendMessage(makeNotification() as any, makeMessage())).toBe(true);
