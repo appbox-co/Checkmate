@@ -16,7 +16,7 @@ interface GlobalPingMeasurementRequest {
 	type: MonitorType;
 	target: string;
 	locations: Array<{ continent: GeoContinent; limit: number }>;
-	measurementOptions?: { protocol: "HTTP" | "HTTPS"; port: number; request: { method: HttpMethod; path: string; query: string } };
+	measurementOptions?: { protocol: "HTTP" | "HTTPS"; port: number; request: { method: HttpMethod; path: string; query?: string } };
 	timeout: number;
 }
 
@@ -74,7 +74,10 @@ export class GlobalPingService implements IGlobalPingService {
 
 	private logger: ILogger;
 
-	constructor(logger: ILogger) {
+	constructor(
+		logger: ILogger,
+		private readonly apiToken?: string
+	) {
 		this.logger = logger;
 	}
 
@@ -100,7 +103,7 @@ export class GlobalPingService implements IGlobalPingService {
 							measurementOptions: {
 								protocol: parsedUrl.protocol === "https:" ? ("HTTPS" as const) : ("HTTP" as const),
 								port: parsedUrl.port ? Number(parsedUrl.port) : parsedUrl.protocol === "https:" ? 443 : 80,
-								request: { method, path: parsedUrl.pathname, query: parsedUrl.search.slice(1) },
+								request: { method, path: parsedUrl.pathname, ...(parsedUrl.search.slice(1) ? { query: parsedUrl.search.slice(1) } : {}) },
 							},
 						}
 					: {}),
@@ -108,6 +111,7 @@ export class GlobalPingService implements IGlobalPingService {
 
 			const response = await got.post<GlobalPingMeasurementResponse>(`${GLOBAL_PING_API_BASE}/measurements`, {
 				json: requestBody,
+				...(this.apiToken?.trim() ? { headers: { authorization: `Bearer ${this.apiToken.trim()}` } } : {}),
 				responseType: "json",
 				timeout: { request: 10000 },
 			});

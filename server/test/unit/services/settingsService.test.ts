@@ -77,6 +77,13 @@ describe("SettingsService", () => {
 			});
 		});
 
+		it("keeps the Globalping token in server configuration only", async () => {
+			const { service } = createService({ GLOBALPING_TOKEN: "globalping-test-token" });
+			expect(service.getSettings().globalpingToken).toBe("globalping-test-token");
+			expect(JSON.stringify(service.getSettings().clientConfig)).not.toContain("globalping-test-token");
+			expect(JSON.stringify(await service.getDBSettings())).not.toContain("globalping-test-token");
+		});
+
 		it("maps only set CLIENT_CONFIG_* env vars into clientConfig", () => {
 			const { service } = createService({
 				CLIENT_CONFIG_API_BASE_URL: "https://api.example.com/api/v1",

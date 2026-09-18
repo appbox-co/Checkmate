@@ -86,7 +86,7 @@ describe("GlobalPingService", () => {
 							{ continent: "NA", limit: 1 },
 							{ continent: "EU", limit: 1 },
 						],
-						measurementOptions: { protocol: "HTTPS", port: 443, request: { method: "GET", path: "/", query: "" } },
+						measurementOptions: { protocol: "HTTPS", port: 443, request: { method: "GET", path: "/" } },
 						timeout: 20,
 					},
 					responseType: "json",
@@ -99,6 +99,27 @@ describe("GlobalPingService", () => {
 					method: "createMeasurement",
 				})
 			);
+		});
+
+		it("uses the account token only to authorize measurement creation", async () => {
+			const logger = createMockLogger();
+			const token = "globalping-test-token";
+			const service = new GlobalPingService(logger as any, token);
+			mockGotPost.mockResolvedValue({ body: { id: "meas-auth" } });
+			mockGotGet.mockResolvedValue({ body: { status: "finished", results: [makeProbeResult()] } });
+			await service.createMeasurement("ping", "example.com", ["EU"]);
+			await service.pollForResults("meas-auth");
+			expect(mockGotPost.mock.calls[0][1].headers).toEqual({ authorization: `Bearer ${token}` });
+			expect(JSON.stringify(mockGotPost.mock.calls[0][1].json)).not.toContain(token);
+			expect(mockGotGet.mock.calls[0][1]).not.toHaveProperty("headers");
+			expect(JSON.stringify(logger.debug.mock.calls)).not.toContain(token);
+		});
+
+		it.each([undefined, ""])("keeps requests anonymous without a token (%s)", async (token) => {
+			const service = new GlobalPingService(createMockLogger() as any, token);
+			mockGotPost.mockResolvedValue({ body: { id: "meas-anonymous" } });
+			await service.createMeasurement("ping", "example.com", ["EU"]);
+			expect(mockGotPost.mock.calls[0][1]).not.toHaveProperty("headers");
 		});
 
 		it("strips http:// protocol from target URL", async () => {
@@ -115,7 +136,7 @@ describe("GlobalPingService", () => {
 			);
 		});
 
-		it("strips https:// protocol from target URL", async () => {
+		it("preserves HTTP paths without sending an empty query string", async () => {
 			const { service } = createService();
 			mockGotPost.mockResolvedValue({ body: { id: "meas-1" } });
 
@@ -126,7 +147,7 @@ describe("GlobalPingService", () => {
 				expect.objectContaining({
 					json: expect.objectContaining({
 						target: "example.com",
-						measurementOptions: { protocol: "HTTPS", port: 443, request: { method: "GET", path: "/path", query: "" } },
+						measurementOptions: { protocol: "HTTPS", port: 443, request: { method: "GET", path: "/path" } },
 					}),
 				})
 			);

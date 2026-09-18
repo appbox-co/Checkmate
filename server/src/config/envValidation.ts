@@ -67,6 +67,9 @@ const envSchema = z.object({
 	// Optional
 	ORIGIN: z.string().optional(),
 
+	// Geographic monitoring; never exposed in client runtime configuration.
+	GLOBALPING_TOKEN: z.string().trim().optional(),
+
 	// Feature flags
 	STATUS_PAGE_THEMES_ENABLED: booleanCoercion.default(true),
 

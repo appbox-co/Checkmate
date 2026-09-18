@@ -24,6 +24,8 @@ Provider reference: [Globalping API](https://globalping.io/docs/api.globalping.i
 
 Build and deploy the application image normally. No new daemon, queue type, external service or database migration is required. The new MongoDB fields are optional. Geographic probing remains off for existing monitors where it was disabled. Existing geo-enabled monitors adopt this outage policy on deployment.
 
+Set the optional server environment variable `GLOBALPING_TOKEN` to a dashboard access token to use the account quota. Pass it to the primary process and any separate workers, then restart them. Blank or unset tokens retain anonymous requests. The token is sent only in the authorization header when creating a measurement; it is not part of the probe request body or client configuration.
+
 Choose regions/intervals within the account's current Globalping quota before enabling this across the estate. This change does not enable geographic checks on production monitors, add provider credentials or create notification channels. Notification channels must already be attached to each monitor to receive alerts.
 
 Tests use provider fixtures and a disposable local MongoDB; they do not send real notifications or launch public probes.

@@ -167,7 +167,7 @@ export const buildShared = async ({
 	const incidentService = new IncidentService(logger, incidentsRepository, monitorsRepository, usersRepository, notificationMessageBuilder);
 	const checkService = new CheckService(monitorsRepository, logger, checksRepository);
 
-	const globalPingService = new GlobalPingService(logger);
+	const globalPingService = new GlobalPingService(logger, envSettings.globalpingToken);
 	const geoChecksService = new GeoChecksService({
 		logger,
 		geoChecksRepository,
