@@ -78,7 +78,7 @@ export interface BaseStyles {
 }
 
 export interface SlotProps<S extends BaseStyles = BaseStyles> {
-	statusPage: StatusPage;
+	statusPage: Pick<StatusPage, "companyName" | "url">;
 	logoSrc: string | null;
 	overall: OverallStatus;
 	monitorCount: number;

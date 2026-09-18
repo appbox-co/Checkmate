@@ -1,3 +1,8 @@
+import { useRef } from "react";
+import {
+	StatusPageSkeleton,
+	APPBOX_LOADING_APPEARANCE,
+} from "./Components/StatusPageSkeleton";
 import { StatusPageUpdatesManager } from "./Components/StatusPageUpdatesManager";
 import { BasePage, BaseFallback } from "@/Components/design-elements";
 import Typography from "@mui/material/Typography";
@@ -133,24 +138,55 @@ const StatusPageView = () => {
 
 	const statusPage = data?.statusPage;
 	const monitors = data?.monitors ?? [];
+	// Keep only this page's layout while a different range or detail request loads.
+	// Health and history always come from the current request.
+	const shell = useRef<{ key: string; data: StatusPageResponse; monitorId?: string }>();
+	const pageKey = onCustomDomainHost
+		? window.location.hostname
+		: (isPublic ? "public:" : "private:") + url;
+	if (data?.statusPage) shell.current = { key: pageKey, data, monitorId };
+	const previous = shell.current?.key === pageKey ? shell.current : undefined;
+	const isAppbox =
+		url === "appbox" ||
+		window.location.hostname.replace(/\.$/, "").toLowerCase() === "status.appbox.co";
 
-	if (!statusPage)
+	if (!statusPage) {
+		const appearance =
+			previous?.data.statusPage ?? (isAppbox ? APPBOX_LOADING_APPEARANCE : undefined);
+		const customCss = previous?.data.statusPage.customCSS;
+		const loadingMonitors = monitorId
+			? previous?.data.monitors.filter((monitor) => monitor.id === monitorId)
+			: previous?.monitorId
+				? undefined
+				: previous?.data.monitors;
 		return (
-			<Box sx={{ p: 4, maxWidth: 980, mx: "auto" }}>
-				<Typography role="status">
-					{error ? "This status page or monitor could not be loaded." : "Loading status…"}
-				</Typography>
-				{monitorId && <Link to={listPath}>Back to all services</Link>}
-				{error && (
-					<button
-						type="button"
-						onClick={() => refetch()}
-					>
-						Try again
-					</button>
+			<StatusPageThemeProvider
+				theme={appearance?.theme}
+				themeMode={appearance?.themeMode}
+				timezone={appearance?.timezone}
+				brandColor={appearance?.color}
+				paintBody={isPublic}
+			>
+				{customCss && !cssReferencesExternalResource(customCss) && (
+					<style>{customCss}</style>
 				)}
-			</Box>
+				<StatusPageSkeleton
+					statusPage={previous?.data.statusPage}
+					monitors={loadingMonitors}
+					appbox={isAppbox}
+					config={THEME_CONFIGS[resolveStatusPageTheme(appearance?.theme)]}
+					detail={Boolean(monitorId)}
+					listPath={listPath}
+					range={range}
+					onRangeChange={onRangeChange}
+					error={Boolean(error)}
+					onRetry={() => {
+						void refetch();
+					}}
+				/>
+			</StatusPageThemeProvider>
 		);
+	}
 
 	if (monitors.length === 0 && !statusPage.updates?.length) {
 		return (
