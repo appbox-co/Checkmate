@@ -67,6 +67,10 @@ const Routes = () => {
 		return (
 			<LibRoutes>
 				<Route
+					path="/monitors/:monitorId"
+					element={<Status />}
+				/>
+				<Route
 					path="/"
 					element={<Status />}
 				/>
@@ -302,6 +306,10 @@ const Routes = () => {
 			<Route
 				path="/set-new-password/:token"
 				element={<AuthSetNewPassword />}
+			/>
+			<Route
+				path="/status/public/:url/monitors/:monitorId"
+				element={<Status />}
 			/>
 			<Route
 				path="/status/public/:url"

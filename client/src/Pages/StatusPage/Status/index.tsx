@@ -82,7 +82,7 @@ const THEME_CONFIGS: Record<StatusPageTheme, ThemeConfig<any>> = {
 const StatusPageView = () => {
 	const theme = useTheme();
 	const { t } = useTranslation();
-	const { url } = useParams();
+	const { url, monitorId } = useParams();
 	const isAdmin = useIsAdmin();
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -104,9 +104,21 @@ const StatusPageView = () => {
 	const rawRange = searchParams.get("range");
 	const range = isStatusPageRange(rawRange) ? rawRange : "latest";
 
+	const rawPage = Number(searchParams.get("page") ?? 0);
+	const incidentPage =
+		Number.isInteger(rawPage) && rawPage >= 0 && rawPage <= 1000 ? rawPage : 0;
+	const onIncidentPageChange = (page: number) => {
+		const updated = new URLSearchParams(searchParams);
+		if (page === 0) updated.delete("page");
+		else updated.set("page", String(page));
+		setSearchParams(updated);
+	};
+	const listPath = onCustomDomainHost ? "/" : "/status/public/" + url;
 	const apiUrl = buildStatusPageApiPath({
 		url,
 		useCustomDomain: onCustomDomainHost,
+		monitorId,
+		incidentPage,
 		range,
 	});
 
@@ -114,7 +126,7 @@ const StatusPageView = () => {
 		apiUrl,
 		{},
 		{
-			keepPreviousData: true,
+			keepPreviousData: false,
 			refreshInterval: range === "latest" ? 10000 : 60000,
 		}
 	);
@@ -122,7 +134,23 @@ const StatusPageView = () => {
 	const statusPage = data?.statusPage;
 	const monitors = data?.monitors ?? [];
 
-	if (!statusPage) return null;
+	if (!statusPage)
+		return (
+			<Box sx={{ p: 4, maxWidth: 980, mx: "auto" }}>
+				<Typography role="status">
+					{error ? "This status page or monitor could not be loaded." : "Loading status…"}
+				</Typography>
+				{monitorId && <Link to={listPath}>Back to all services</Link>}
+				{error && (
+					<button
+						type="button"
+						onClick={() => refetch()}
+					>
+						Try again
+					</button>
+				)}
+			</Box>
+		);
 
 	if (monitors.length === 0 && !statusPage.updates?.length) {
 		return (
@@ -174,8 +202,12 @@ const StatusPageView = () => {
 					config={themeConfig}
 					range={range}
 					onRangeChange={onRangeChange}
-					bucketTimezone={data.bucketTimezone ?? "Etc/UTC"}
+					bucketTimezone={data.bucketTimezone ?? statusPage.timezone ?? "Etc/UTC"}
 					checkTTLDays={data.checkTTLDays}
+					detail={Boolean(monitorId)}
+					listPath={listPath}
+					outages={data.outages}
+					onIncidentPageChange={onIncidentPageChange}
 				/>
 			</StatusPageThemeProvider>
 		);

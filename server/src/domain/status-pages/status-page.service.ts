@@ -1,3 +1,6 @@
+import { publicStatusLocations } from "./status-page.locations.js";
+import type { PublicMonitorSelection } from "./status-page.type.js";
+import { supportsGeoCheck } from "@/domain/monitors/monitor.type.js";
 import { isConfirmedDown, type IStatusPageHistoryRepository, type PublicStatusHistory } from "./status-page-history.repository.mongo.js";
 import { randomUUID } from "node:crypto";
 import type { IMaintenanceWindowsRepository } from "@/domain/maintenance-windows/maintenance-window.repository.interface.js";
@@ -24,7 +27,12 @@ export interface IStatusPageService {
 	getStatusPageByUrl(url: string): Promise<StatusPage>;
 	getStatusPageByCustomDomain(customDomain: string): Promise<StatusPage>;
 	getStatusPagesByTeamId(teamId: string): Promise<StatusPage[]>;
-	getPublicStatusPagePayload(statusPage: StatusPage, requesterTeamId: string | undefined, range: StatusPageRange): Promise<PublicStatusPagePayload>;
+	getPublicStatusPagePayload(
+		statusPage: StatusPage,
+		requesterTeamId: string | undefined,
+		range: StatusPageRange,
+		selection?: PublicMonitorSelection
+	): Promise<PublicStatusPagePayload>;
 	updateStatusPage(id: string, teamId: string, image: Express.Multer.File | undefined, data: Partial<StatusPage>): Promise<StatusPage>;
 
 	addStatusUpdate(id: string, teamId: string, author: string, data: StatusPageUpdateInput): Promise<StatusPage>;
@@ -92,6 +100,7 @@ export class StatusPageService implements IStatusPageService {
 			name: monitor.name,
 			type: monitor.type,
 			status: monitor.status,
+			interval: monitor.interval,
 			uptimePercentage: totalChecks ? upChecks / totalChecks : undefined,
 			recentChecks: monitor.recentChecks.map((check) => {
 				const { message: _message, statusCode: _statusCode, ...sample } = check;
@@ -142,7 +151,8 @@ export class StatusPageService implements IStatusPageService {
 	getPublicStatusPagePayload = async (
 		statusPage: StatusPage,
 		requesterTeamId: string | undefined,
-		range: StatusPageRange = "latest"
+		range: StatusPageRange = "latest",
+		selection: PublicMonitorSelection = {}
 	): Promise<PublicStatusPagePayload> => {
 		if (!statusPage.isPublished) {
 			if (!requesterTeamId || statusPage.teamId !== requesterTeamId) {
@@ -150,10 +160,17 @@ export class StatusPageService implements IStatusPageService {
 			}
 		}
 
+		if (selection.monitorId && !statusPage.monitors.includes(selection.monitorId)) {
+			throw new AppError({ message: "Monitor not found on this status page", status: 404 });
+		}
+		const selectedIds = selection.monitorId ? [selection.monitorId] : statusPage.monitors;
 		const dbSettings = await this.settingsService.getDBSettings();
 		const showURL = dbSettings.showURL;
-		const monitors = await this.monitorsRepository.findByIds(statusPage.monitors, { recentChecks: range === "latest" ? "all" : "latestHardware" });
-		const pageMonitors = monitors.filter((monitor) => monitor.teamId === statusPage.teamId);
+		const monitors = await this.monitorsRepository.findByIds(selectedIds, { recentChecks: range === "latest" ? "all" : "latestHardware" });
+		const pageMonitors = monitors.filter((monitor) => monitor.teamId === statusPage.teamId && selectedIds.includes(monitor.id));
+		if (selection.monitorId && pageMonitors.length !== 1) {
+			throw new AppError({ message: "Monitor not found on this status page", status: 404 });
+		}
 		const windows = await this.maintenanceWindowsRepository.findByMonitorIds(
 			pageMonitors.map(({ id }) => id),
 			statusPage.teamId
@@ -176,8 +193,28 @@ export class StatusPageService implements IStatusPageService {
 			now
 		);
 
+		const geoMonitors = sorted.filter((monitor) => monitor.geoCheckEnabled && supportsGeoCheck(monitor.type));
+		const geoHistory = geoMonitors.length
+			? await this.historyRepository.findGeoHistory(
+					statusPage.teamId,
+					geoMonitors.map(({ id }) => id),
+					range === "latest" ? undefined : STATUS_PAGE_RANGE_DAYS[range],
+					bucketTimezone,
+					now
+				)
+			: [];
+		const detail = selection.monitorId
+			? {
+					outages: await this.historyRepository.findIncidentPage(statusPage.teamId, selection.monitorId, selection.incidentPage ?? 0, now),
+				}
+			: {};
+		const toPublic = (monitor: Monitor) => ({
+			...this.toPublicMonitor(monitor, showURL, history),
+			locations: publicStatusLocations(monitor, geoHistory, range !== "latest", now),
+		});
+
 		if (range === "latest") {
-			return { statusPage, maintenanceWindows, monitors: sorted.map((monitor) => this.toPublicMonitor(monitor, showURL, history)) };
+			return { statusPage, maintenanceWindows, ...detail, monitors: sorted.map(toPublic) };
 		}
 
 		const bucketsByMonitor = history.buckets.reduce((grouped, bucket) => {
@@ -196,8 +233,9 @@ export class StatusPageService implements IStatusPageService {
 			range,
 			bucketTimezone,
 			checkTTLDays: dbSettings.checkTTL,
+			...detail,
 			monitors: sorted.map((monitor) => ({
-				...this.toPublicMonitor(monitor, showURL, history),
+				...toPublic(monitor),
 				dailyChecks: bucketsByMonitor.get(monitor.id) ?? [],
 			})),
 		};

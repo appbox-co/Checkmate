@@ -90,3 +90,19 @@ describe("getStatusPageQueryValidation", () => {
 		}
 	});
 });
+
+describe("public monitor selection validation", () => {
+	it("accepts a public monitor selection and bounded incident page", () => {
+		expect(getStatusPageQueryValidation.parse({ type: "uptime", monitorId: "0123456789abcdef01234567", incidentPage: "2" })).toMatchObject({
+			monitorId: "0123456789abcdef01234567",
+			incidentPage: 2,
+			range: "latest",
+		});
+	});
+	it("rejects malformed monitor IDs and invalid pagination", () => {
+		for (const monitorId of ["bad", "", ["0123456789abcdef01234567"]])
+			expect(getStatusPageQueryValidation.safeParse({ type: "uptime", monitorId }).success).toBe(false);
+		for (const incidentPage of ["-1", "1.5", "1001", "abc"])
+			expect(getStatusPageQueryValidation.safeParse({ type: "uptime", incidentPage }).success).toBe(false);
+	});
+});

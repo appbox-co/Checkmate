@@ -1,3 +1,4 @@
+import type { DailyCheckBucket } from "@/Types/Check";
 import { monitorTypeLabelKey } from "@/Types/Monitor";
 import type { Monitor, MonitorType } from "@/Types/Monitor";
 export type MonitorDisplayType = "uptime" | "infrastructure";
@@ -109,9 +110,38 @@ export interface StatusPage {
 	updatedAt: string;
 }
 
+export interface PublicStatusLocation {
+	continent: string;
+	status: "up" | "down" | "unknown" | "paused";
+	stale: boolean;
+	checkedAt?: string;
+	interval: number;
+	city?: string;
+	country?: string;
+	recentChecks: {
+		createdAt: string;
+		status: boolean;
+		responseTime?: number;
+		city: string;
+		country: string;
+	}[];
+	dailyChecks?: DailyCheckBucket[];
+}
+export interface PublicOutagePage {
+	events: {
+		id: string;
+		startTime: string;
+		endTime: string | null;
+		statusCode: number | null;
+	}[];
+	page: number;
+	hasMore: boolean;
+}
+export type StatusPageMonitor = Monitor & { locations?: PublicStatusLocation[] };
 export interface StatusPageResponse {
+	outages?: PublicOutagePage;
 	statusPage: StatusPage;
-	monitors: Monitor[];
+	monitors: StatusPageMonitor[];
 	maintenanceWindows?: PublicMaintenanceWindow[];
 	range?: StatusPageDayRange; // present only when range !== "latest"
 	bucketTimezone?: string;

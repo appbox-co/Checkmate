@@ -21,6 +21,8 @@ const monitor = {
 } as Monitor;
 const createService = () => {
 	const history = {
+		findIncidentPage: jest.fn().mockResolvedValue({ events: [], page: 0, hasMore: false }),
+		findGeoHistory: jest.fn().mockResolvedValue([]),
 		findHistory: jest.fn().mockResolvedValue({
 			intervals: [],
 			buckets: [{ monitorId: "router", date: "2026-09-18", totalChecks: 10, upChecks: 10, downChecks: 0, avgResponseTime: 20 }],
@@ -78,5 +80,48 @@ describe("public status page confirmed history projection", () => {
 		const payload = await service.getPublicStatusPagePayload({ ...page, monitors: ["router", "foreign"] }, undefined);
 		expect(payload.monitors).toHaveLength(1);
 		expect(history.findHistory).toHaveBeenCalledWith("team", ["router"], undefined, "Etc/UTC", expect.any(Date));
+	});
+});
+
+describe("public monitor details", () => {
+	it("rejects monitors outside the published selection before querying any history", async () => {
+		const { service, history, monitors } = createService();
+		await expect(service.getPublicStatusPagePayload(page, undefined, "latest", { monitorId: "private" })).rejects.toMatchObject({ status: 404 });
+		expect(monitors.findByIds).not.toHaveBeenCalled();
+		expect(history.findIncidentPage).not.toHaveBeenCalled();
+		expect(history.findGeoHistory).not.toHaveBeenCalled();
+	});
+	it("rejects an unpublished page and foreign-team or deleted monitor", async () => {
+		const { service, history, monitors } = createService();
+		await expect(
+			service.getPublicStatusPagePayload({ ...page, isPublished: false }, undefined, "latest", { monitorId: "router" })
+		).rejects.toMatchObject({ status: 403 });
+		monitors.findByIds.mockResolvedValue([{ ...monitor, teamId: "other" }]);
+		await expect(service.getPublicStatusPagePayload(page, undefined, "latest", { monitorId: "router" })).rejects.toMatchObject({ status: 404 });
+		monitors.findByIds.mockResolvedValue([]);
+		await expect(service.getPublicStatusPagePayload(page, undefined, "latest", { monitorId: "router" })).rejects.toMatchObject({ status: 404 });
+		expect(history.findIncidentPage).not.toHaveBeenCalled();
+	});
+	it("selects only the requested public monitor and returns a page of confirmed outages", async () => {
+		const { service, history, monitors } = createService();
+		history.findIncidentPage.mockResolvedValue({
+			page: 2,
+			hasMore: true,
+			events: [{ id: "incident", startTime: "2026-09-18T08:00:00Z", endTime: null, statusCode: 503 }],
+		});
+		const result = await service.getPublicStatusPagePayload({ ...page, monitors: ["other", "router"] }, undefined, "30d", {
+			monitorId: "router",
+			incidentPage: 2,
+		});
+		expect(monitors.findByIds).toHaveBeenCalledWith(["router"], { recentChecks: "latestHardware" });
+		expect(history.findIncidentPage).toHaveBeenCalledWith("team", "router", 2, expect.any(Date));
+		expect(result.outages).toMatchObject({ page: 2, hasMore: true, events: [{ statusCode: 503 }] });
+		expect(result.monitors).toHaveLength(1);
+		expect(history.findGeoHistory).not.toHaveBeenCalled();
+	});
+	it("does not load incident pages for the overview", async () => {
+		const { service, history } = createService();
+		expect(await service.getPublicStatusPagePayload(page, undefined)).not.toHaveProperty("outages");
+		expect(history.findIncidentPage).not.toHaveBeenCalled();
 	});
 });

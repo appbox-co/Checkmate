@@ -91,12 +91,18 @@ export const buildStatusPageApiPath = (options: {
 	url?: string;
 	useCustomDomain?: boolean;
 	range?: StatusPageRange;
+	monitorId?: string;
+	incidentPage?: number;
 }): string | null => {
 	let query = "type=uptime&type=infrastructure";
 	if (options.range && options.range !== "latest") {
 		query += `&range=${options.range}`;
 	}
 
+	if (options.monitorId) {
+		query += "&monitorId=" + encodeURIComponent(options.monitorId);
+		query += "&incidentPage=" + (options.incidentPage ?? 0);
+	}
 	if (options.useCustomDomain && typeof window !== "undefined") {
 		const domain = encodeURIComponent(window.location.hostname);
 		return `/status-page/resolve?domain=${domain}&${query}`;

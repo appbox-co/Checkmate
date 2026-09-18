@@ -1751,6 +1751,41 @@
 			"PublicStatusPagePayload": {
 				"type": "object",
 				"properties": {
+					"outages": {
+						"type": "object",
+						"properties": {
+							"page": {
+								"type": "number"
+							},
+							"hasMore": {
+								"type": "boolean"
+							},
+							"events": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"id": {
+											"type": "string"
+										},
+										"startTime": {
+											"type": "string"
+										},
+										"endTime": {
+											"type": "string",
+											"nullable": true
+										},
+										"statusCode": {
+											"type": "number",
+											"nullable": true
+										}
+									},
+									"required": ["id", "startTime", "endTime", "statusCode"]
+								}
+							}
+						},
+						"required": ["page", "hasMore", "events"]
+					},
 					"statusPage": {
 						"type": "object",
 						"properties": {
@@ -1916,6 +1951,92 @@
 						"items": {
 							"type": "object",
 							"properties": {
+								"interval": {
+									"type": "number"
+								},
+								"locations": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"continent": {
+												"type": "string"
+											},
+											"status": {
+												"type": "string",
+												"enum": ["up", "down", "unknown", "paused"]
+											},
+											"stale": {
+												"type": "boolean"
+											},
+											"checkedAt": {
+												"type": "string"
+											},
+											"interval": {
+												"type": "number"
+											},
+											"city": {
+												"type": "string"
+											},
+											"country": {
+												"type": "string"
+											},
+											"recentChecks": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"properties": {
+														"createdAt": {
+															"type": "string"
+														},
+														"status": {
+															"type": "boolean"
+														},
+														"responseTime": {
+															"type": "number"
+														},
+														"city": {
+															"type": "string"
+														},
+														"country": {
+															"type": "string"
+														}
+													},
+													"required": ["createdAt", "status", "city", "country"]
+												}
+											},
+											"dailyChecks": {
+												"type": "array",
+												"items": {
+													"type": "object",
+													"properties": {
+														"monitorId": {
+															"type": "string"
+														},
+														"date": {
+															"type": "string"
+														},
+														"totalChecks": {
+															"type": "number"
+														},
+														"upChecks": {
+															"type": "number"
+														},
+														"downChecks": {
+															"type": "number"
+														},
+														"avgResponseTime": {
+															"type": "number",
+															"nullable": true
+														}
+													},
+													"required": ["monitorId", "date", "totalChecks", "upChecks", "downChecks", "avgResponseTime"]
+												}
+											}
+										},
+										"required": ["continent", "status", "stale", "interval", "recentChecks"]
+									}
+								},
 								"id": {
 									"type": "string"
 								},
@@ -1943,15 +2064,6 @@
 											},
 											"status": {
 												"type": "boolean"
-											},
-											"responseTime": {
-												"type": "number"
-											},
-											"statusCode": {
-												"type": "number"
-											},
-											"message": {
-												"type": "string"
 											},
 											"createdAt": {
 												"type": "string"
@@ -1985,9 +2097,12 @@
 													}
 												},
 												"required": ["total", "running", "stopped", "unhealthy"]
+											},
+											"responseTime": {
+												"type": "number"
 											}
 										},
-										"required": ["id", "status", "responseTime", "statusCode", "message", "createdAt"],
+										"required": ["id", "status", "createdAt"],
 										"additionalProperties": {
 											"nullable": true
 										}
@@ -2028,7 +2143,7 @@
 									}
 								}
 							},
-							"required": ["id", "name", "type", "status", "recentChecks"]
+							"required": ["interval", "id", "name", "type", "status", "recentChecks"]
 						}
 					},
 					"maintenanceWindows": {
@@ -14795,6 +14910,27 @@
 					},
 					{
 						"schema": {
+							"type": "string",
+							"pattern": "^[0-9a-fA-F]{24}$"
+						},
+						"required": false,
+						"name": "monitorId",
+						"in": "query"
+					},
+					{
+						"schema": {
+							"type": "integer",
+							"nullable": true,
+							"minimum": 0,
+							"maximum": 1000,
+							"default": 0
+						},
+						"required": false,
+						"name": "incidentPage",
+						"in": "query"
+					},
+					{
+						"schema": {
 							"type": "string"
 						},
 						"required": false,
@@ -14897,6 +15033,27 @@
 						},
 						"required": false,
 						"name": "range",
+						"in": "query"
+					},
+					{
+						"schema": {
+							"type": "string",
+							"pattern": "^[0-9a-fA-F]{24}$"
+						},
+						"required": false,
+						"name": "monitorId",
+						"in": "query"
+					},
+					{
+						"schema": {
+							"type": "integer",
+							"nullable": true,
+							"minimum": 0,
+							"maximum": 1000,
+							"default": 0
+						},
+						"required": false,
+						"name": "incidentPage",
 						"in": "query"
 					}
 				],

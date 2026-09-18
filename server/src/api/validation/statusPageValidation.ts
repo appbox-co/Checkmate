@@ -24,6 +24,11 @@ export const getStatusPageParamValidation = z.object({
 export const getStatusPageQueryValidation = z.object({
 	type: z.union([z.enum(StatusPageTypes), z.array(z.enum(StatusPageTypes))]).transform((val) => (Array.isArray(val) ? val : [val])),
 	range: z.enum(StatusPageRanges).optional().default("latest"),
+	monitorId: z
+		.string()
+		.regex(/^[0-9a-fA-F]{24}$/)
+		.optional(),
+	incidentPage: z.coerce.number().int().min(0).max(1000).optional().default(0),
 });
 
 export const resolveStatusPageQueryValidation = getStatusPageQueryValidation.extend({
@@ -176,13 +181,48 @@ export const statusPageResponseSchema = z.object({
 
 // Keep aligned with PublicStatusPageMonitor in domain/status-pages/status-page.type.ts.
 // url/port are present only when the showURL setting is enabled; dailyChecks only when range !== "latest".
+export const publicStatusLocationResponseSchema = z.object({
+	continent: z.string(),
+	status: z.enum(["up", "down", "unknown", "paused"]),
+	stale: z.boolean(),
+	checkedAt: z.string().optional(),
+	interval: z.number(),
+	city: z.string().optional(),
+	country: z.string().optional(),
+	recentChecks: z.array(
+		z.object({
+			createdAt: z.string(),
+			status: z.boolean(),
+			responseTime: z.number().optional(),
+			city: z.string(),
+			country: z.string(),
+		})
+	),
+	dailyChecks: z.array(dailyCheckBucketResponseSchema).optional(),
+});
+export const publicOutagePageResponseSchema = z.object({
+	page: z.number(),
+	hasMore: z.boolean(),
+	events: z.array(
+		z.object({
+			id: z.string(),
+			startTime: z.string(),
+			endTime: z.string().nullable(),
+			statusCode: z.number().nullable(),
+		})
+	),
+});
 export const publicStatusPageMonitorResponseSchema = z.object({
+	interval: z.number(),
+	locations: z.array(publicStatusLocationResponseSchema).optional(),
 	id: z.string(),
 	name: z.string(),
 	type: z.enum(MonitorTypes),
 	status: z.enum(MonitorStatuses),
 	uptimePercentage: z.number().optional(),
-	recentChecks: z.array(checkSnapshotResponseSchema),
+	recentChecks: z.array(
+		checkSnapshotResponseSchema.omit({ message: true, statusCode: true, responseTime: true }).extend({ responseTime: z.number().optional() })
+	),
 	url: z.string().optional(),
 	port: z.number().optional(),
 	dailyChecks: z.array(dailyCheckBucketResponseSchema).optional(),
@@ -191,6 +231,7 @@ export const publicStatusPageMonitorResponseSchema = z.object({
 // Response of the public status page endpoints. Keep aligned with PublicStatusPagePayload in
 // domain/status-pages/status-page.type.ts; range, bucketTimezone, and checkTTLDays are present only when range !== "latest".
 export const publicStatusPagePayloadResponseSchema = z.object({
+	outages: publicOutagePageResponseSchema.optional(),
 	statusPage: statusPageResponseSchema,
 	monitors: z.array(publicStatusPageMonitorResponseSchema),
 	maintenanceWindows: z.array(publicMaintenanceResponseSchema),

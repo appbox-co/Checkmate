@@ -1,12 +1,15 @@
 import { StatusPageCommunications } from "../../Components/StatusPageCommunications";
 import type { PublicMaintenanceWindow } from "@/Types/StatusPage";
+import { Link } from "react-router-dom";
+import { StatusLocations } from "./StatusLocations";
+import { OutageHistory } from "./OutageHistory";
+import type { PublicOutagePage, StatusPageMonitor } from "@/Types/StatusPage";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { TriangleAlert } from "lucide-react";
 
 import type { SxProps, Theme } from "@mui/material/styles";
-import type { Monitor } from "@/Types/Monitor";
 import type { StatusPage, StatusPageRange } from "@/Types/StatusPage";
 import {
 	getMonitorTypeLabel,
@@ -41,8 +44,6 @@ import { useStatusPageTheme } from "@/Pages/StatusPage/Status/themes/StatusPageT
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@mui/material";
-
-type StatusPageMonitor = Monitor;
 
 export interface BaseStyles {
 	page: SxProps<Theme>;
@@ -92,6 +93,10 @@ export interface ThemeConfig<S extends BaseStyles = BaseStyles> {
 }
 
 interface Props {
+	detail?: boolean;
+	listPath: string;
+	outages?: PublicOutagePage;
+	onIncidentPageChange: (page: number) => void;
 	maintenanceWindows?: PublicMaintenanceWindow[];
 	statusPage: StatusPage;
 	monitors: StatusPageMonitor[];
@@ -111,6 +116,10 @@ export const BaseStatusPage = ({
 	onRangeChange,
 	bucketTimezone,
 	checkTTLDays,
+	detail = false,
+	listPath,
+	outages,
+	onIncidentPageChange,
 }: Props) => {
 	const theme = useTheme();
 	const { t } = useTranslation();
@@ -146,13 +155,42 @@ export const BaseStatusPage = ({
 				/>
 			</Stack>
 
-			<HeroSlot
-				statusPage={statusPage}
-				logoSrc={logoSrc}
-				overall={overall}
-				monitorCount={activeMonitors.length}
-				styles={styles}
-			/>
+			{detail ? (
+				<Box sx={{ mb: 3 }}>
+					<Box
+						component={Link}
+						to={listPath}
+						sx={{ color: tokens.textMuted, fontSize: 13, textUnderlineOffset: "3px" }}
+					>
+						← Back to all services
+					</Box>
+					<Box
+						component="h1"
+						sx={{
+							mt: 2,
+							mb: 0.5,
+							fontSize: { xs: 22, md: 30 },
+							overflowWrap: "anywhere",
+						}}
+					>
+						{monitors[0]?.name}
+					</Box>
+					<Box sx={{ color: tokens.textMuted, fontSize: 13 }}>
+						Availability and outage history
+						{monitors[0]?.interval
+							? " · Checked every " + Math.round(monitors[0].interval / 1000) + " seconds"
+							: ""}
+					</Box>
+				</Box>
+			) : (
+				<HeroSlot
+					statusPage={statusPage}
+					logoSrc={logoSrc}
+					overall={overall}
+					monitorCount={activeMonitors.length}
+					styles={styles}
+				/>
+			)}
 
 			<StatusPageCommunications
 				section="notices"
@@ -265,7 +303,40 @@ export const BaseStatusPage = ({
 							sx={styles.card}
 						>
 							<Box sx={styles.cardRow}>
-								<Box sx={styles.monitorName}>{monitor.name}</Box>
+								{detail ? (
+									<Box sx={styles.monitorName}>{monitor.name}</Box>
+								) : (
+									<Box
+										component={Link}
+										to={
+											(listPath === "/" ? "" : listPath) +
+											"/monitors/" +
+											monitor.id +
+											(range === "latest" ? "" : "?range=" + range)
+										}
+										sx={[
+											styles.monitorName,
+											{
+												textDecoration: "none",
+												"&:hover": { textDecoration: "underline" },
+												"&:focus-visible": {
+													outline: "2px solid " + tokens.up,
+													outlineOffset: 3,
+												},
+											},
+										]}
+										title={"View outage history for " + monitor.name}
+									>
+										{monitor.name}{" "}
+										<Box
+											component="span"
+											aria-hidden="true"
+											sx={{ color: tokens.textMuted, fontSize: 12 }}
+										>
+											↗
+										</Box>
+									</Box>
+								)}
 								<Box
 									component="span"
 									sx={styles.badge(badgeTone)}
@@ -315,6 +386,13 @@ export const BaseStatusPage = ({
 									}}
 								/>
 							)}
+							{showChart && Boolean(monitor.locations?.length) && (
+								<Box
+									sx={{ px: "24px", pb: "8px", color: tokens.textMuted, fontSize: 11 }}
+								>
+									Overall · confirmed availability
+								</Box>
+							)}
 							{showChart &&
 								(chartMode === "heatmap" ? (
 									<ThemedHeatmap
@@ -330,10 +408,27 @@ export const BaseStatusPage = ({
 										statsSx={styles.chartStats}
 									/>
 								))}
+							{Boolean(monitor.locations?.length) && (
+								<StatusLocations
+									locations={monitor.locations!}
+									range={range}
+									timezone={bucketTimezone}
+									styles={styles}
+									showCharts={showChart}
+								/>
+							)}
 						</Box>
 					);
 				})}
 			</Stack>
+
+			{detail && outages && (
+				<OutageHistory
+					outages={outages}
+					timezone={bucketTimezone}
+					onPageChange={onIncidentPageChange}
+				/>
+			)}
 
 			<StatusPageCommunications
 				section="updates"

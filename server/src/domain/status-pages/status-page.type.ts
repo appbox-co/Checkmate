@@ -85,7 +85,41 @@ export interface StatusPage {
 	updatedAt: string;
 }
 
-export type PublicStatusPageMonitor = Pick<Monitor, "id" | "name" | "type" | "status" | "uptimePercentage"> & {
+export interface PublicLocationSample {
+	createdAt: string;
+	status: boolean;
+	responseTime?: number;
+	city: string;
+	country: string;
+}
+export interface PublicStatusLocation {
+	continent: string;
+	status: "up" | "down" | "unknown" | "paused";
+	stale: boolean;
+	checkedAt?: string;
+	interval: number;
+	city?: string;
+	country?: string;
+	recentChecks: PublicLocationSample[];
+	dailyChecks?: DailyCheckBucket[];
+}
+export interface PublicOutage {
+	id: string;
+	startTime: string;
+	endTime: string | null;
+	statusCode: number | null;
+}
+export interface PublicOutagePage {
+	events: PublicOutage[];
+	page: number;
+	hasMore: boolean;
+}
+export interface PublicMonitorSelection {
+	monitorId?: string;
+	incidentPage?: number;
+}
+export type PublicStatusPageMonitor = Pick<Monitor, "id" | "name" | "type" | "status" | "uptimePercentage" | "interval"> & {
+	locations?: PublicStatusLocation[];
 	recentChecks: (Omit<CheckSnapshot, "message" | "statusCode" | "responseTime"> & { responseTime?: number })[];
 	url?: string;
 	port?: number;
@@ -93,6 +127,7 @@ export type PublicStatusPageMonitor = Pick<Monitor, "id" | "name" | "type" | "st
 };
 
 export interface PublicStatusPagePayload {
+	outages?: PublicOutagePage;
 	statusPage: StatusPage;
 	monitors: PublicStatusPageMonitor[];
 	maintenanceWindows: PublicMaintenanceWindow[];

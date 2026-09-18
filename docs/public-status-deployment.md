@@ -19,7 +19,7 @@ HTTP redirects to HTTPS. Nginx exposes only the status document, runtime config,
 
 The public /config.js selects same-origin API requests and identifies the existing private instance hostname so Checkmate renders its custom-domain status view at /. Requests to the two public status API routes resolve only the Appbox page. They use fixed monitor types and the validated latest, 30d, 60d or 90d range. Authentication headers and cookies are not forwarded on this public surface.
 
-Nginx shares public document/API reads for one second and hashed assets for one hour. Both API routes share a cache key per range. This keeps visitors from sharing the backend's 600-per-minute IP limit. Failures are not cached, stale responses are not served, and browser/Cloudflare caching is disabled with Cache-Control: no-store. The source archive is always fetched from the running image. HTML and assets are proxied from that image, so future image deployments require no separate frontend copy.
+Nginx shares public document/API reads for one second and hashed assets for one hour. Both API routes share a cache key per range, monitor selection and incident page. This keeps visitors from sharing the backend's 600-per-minute IP limit. Failures are not cached, stale responses are not served, and browser/Cloudflare caching is disabled with Cache-Control: no-store. The source archive is always fetched from the running image. HTML and assets are proxied from that image, so future image deployments require no separate frontend copy.
 
 ## Verification after deployment
 
@@ -36,3 +36,13 @@ Pre-cutover application/database backup: /var/backups/checkmate/backup-20260918T
 To restore the old public provider, edit only status.appbox.co in Cloudflare: replace the proxied A record with a DNS-only CNAME to stats.uptimerobot.com, TTL Auto. Existing resolver caches may briefly use either provider. UptimeRobot monitors and account settings were not modified as part of the DNS cutover.
 
 To unpublish Checkmate after a rollback, update the same status page through its native service or UI: isPublished false and customDomain cleared. Do not restore an entire database backup merely to change these two settings, since that would discard subsequent monitoring history.
+
+## Geographic rows and monitor history
+
+Public monitor names link to /monitors/:monitorId; private preview links use /status/public/:url/monitors/:monitorId. Both existing public status API routes accept optional monitorId and incidentPage (0–1000). The service checks published-page access, selected monitor membership and team ownership before loading history. Nginx validates and forwards only these parameters and the supported range.
+
+Location rows show each configured continent's actual probe results: the latest 50, or daily buckets for 30/60/90 days. Latest results are padded on the left where history is missing; blank days are never reported as successful. A successful result becomes stale after twice the configured geographic interval plus one minute. Unresolved regional failures remain failed until a successful observation clears them; paused monitors remain paused. Cities may change as Globalping chooses probes.
+
+The overall chart and uptime percentage continue to use confirmed incidents. The new outage list shows all recorded confirmed incidents, 20 per page, independently of the chart range. It exposes start/end times and status codes, with public reasons derived from HTTP codes. Raw diagnostic messages, staff comments and resolver identities are excluded. Historical UptimeRobot incidents are not imported.
+
+After deployment, verify a monitor link and a directly loaded detail URL, older/newer pagination when history exists, daily geography, no-data/paused behavior, and continued public rejection of private API paths. Keep the previous application image and Nginx configuration together for rollback.
