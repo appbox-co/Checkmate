@@ -7,18 +7,38 @@ export const ModernHeader = ({
 	statusPage,
 	logoSrc,
 	styles,
-}: SlotProps<ModernStyles>) => (
-	<Box sx={styles.brand}>
-		{logoSrc ? (
-			<Box
-				component="img"
-				src={logoSrc}
-				alt={statusPage.companyName}
-				sx={styles.logoImg}
-			/>
-		) : (
-			<Box sx={styles.logoGrad}>{monoFirstChar(statusPage.companyName)}</Box>
-		)}
-		{statusPage.companyName}
-	</Box>
-);
+}: SlotProps<ModernStyles>) => {
+	const isAppbox = statusPage.url === "appbox";
+	const logo = (
+		<Box
+			component="img"
+			src={logoSrc ?? undefined}
+			alt={statusPage.companyName}
+			sx={styles.logoImg}
+		/>
+	);
+	return (
+		<Box sx={styles.brand}>
+			{logoSrc ? (
+				isAppbox ? (
+					<Box
+						component="a"
+						href="https://www.appbox.co"
+						display="inline-flex"
+						color="inherit"
+						sx={{
+							"&:focus-visible": { outline: "2px solid currentColor", outlineOffset: 4 },
+						}}
+					>
+						{logo}
+					</Box>
+				) : (
+					logo
+				)
+			) : (
+				<Box sx={styles.logoGrad}>{monoFirstChar(statusPage.companyName)}</Box>
+			)}
+			{(!isAppbox || !logoSrc) && statusPage.companyName}
+		</Box>
+	);
+};

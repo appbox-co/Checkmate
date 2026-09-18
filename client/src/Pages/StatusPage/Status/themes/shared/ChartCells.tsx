@@ -90,7 +90,7 @@ export const checksToCells = (checks: CheckSnapshot[]): ChartCell[] => {
 			heightPct: heights[i] ?? MIN_HEIGHT_PCT,
 			responseTime: check.responseTime ?? 0,
 			tooltip: <ThemedChartTooltip check={check} />,
-			ariaLabel: `${formatMs(check.responseTime)}, ${check.status ? "up" : "down"}`,
+			ariaLabel: `${check.responseTime == null ? "" : formatMs(check.responseTime) + ", "}${check.status ? "up" : "down"}`,
 			severity: 0,
 		})
 	);

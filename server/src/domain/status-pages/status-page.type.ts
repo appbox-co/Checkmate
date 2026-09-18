@@ -1,4 +1,4 @@
-import { DailyCheckBucket } from "@/domain/checks/check.type.js";
+import { DailyCheckBucket, type CheckSnapshot } from "@/domain/checks/check.type.js";
 import type { Monitor } from "@/domain/monitors/monitor.type.js";
 export const StatusPageTypes = ["uptime", "infrastructure"] as const;
 export type StatusPageType = (typeof StatusPageTypes)[number];
@@ -85,7 +85,8 @@ export interface StatusPage {
 	updatedAt: string;
 }
 
-export type PublicStatusPageMonitor = Pick<Monitor, "id" | "name" | "type" | "status" | "uptimePercentage" | "recentChecks"> & {
+export type PublicStatusPageMonitor = Pick<Monitor, "id" | "name" | "type" | "status" | "uptimePercentage"> & {
+	recentChecks: (Omit<CheckSnapshot, "message" | "statusCode" | "responseTime"> & { responseTime?: number })[];
 	url?: string;
 	port?: number;
 	dailyChecks?: DailyCheckBucket[]; // Only present when range !== "latest"

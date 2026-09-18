@@ -1,3 +1,4 @@
+import { isConfirmedDown, type IStatusPageHistoryRepository, type PublicStatusHistory } from "./status-page-history.repository.mongo.js";
 import { randomUUID } from "node:crypto";
 import type { IMaintenanceWindowsRepository } from "@/domain/maintenance-windows/maintenance-window.repository.interface.js";
 import { publicMaintenanceWindow } from "./public-maintenance.js";
@@ -16,7 +17,6 @@ import {
 import { AppError } from "@/utils/AppError.js";
 import { normalizeStatusPageDomain } from "@/utils/statusPageDomain.js";
 import { Monitor } from "@/domain/monitors/monitor.type.js";
-import { IChecksRepository } from "@/domain/checks/check.repository.interface.js";
 import type { DailyCheckBucket } from "@/domain/checks/check.type.js";
 
 export interface IStatusPageService {
@@ -38,7 +38,7 @@ export class StatusPageService implements IStatusPageService {
 		private statusPagesRepository: IStatusPagesRepository,
 		private settingsService: ISettingsService,
 		private monitorsRepository: IMonitorsRepository,
-		private checksRepository: IChecksRepository,
+		private historyRepository: IStatusPageHistoryRepository,
 		private maintenanceWindowsRepository: IMaintenanceWindowsRepository
 	) {}
 
@@ -83,14 +83,24 @@ export class StatusPageService implements IStatusPageService {
 	private normalizeInput = (data: Partial<StatusPage>): Partial<StatusPage> =>
 		this.settingsService.areStatusPageThemesEnabled() ? data : this.withoutThemeFields(data);
 
-	private toPublicMonitor = (monitor: Monitor, showURL: boolean) => {
+	private toPublicMonitor = (monitor: Monitor, showURL: boolean, history: PublicStatusHistory) => {
+		const buckets = history.buckets.filter((bucket) => bucket.monitorId === monitor.id);
+		const totalChecks = buckets.reduce((total, bucket) => total + bucket.totalChecks, 0);
+		const upChecks = buckets.reduce((total, bucket) => total + bucket.upChecks, 0);
 		const base = {
 			id: monitor.id,
 			name: monitor.name,
 			type: monitor.type,
 			status: monitor.status,
-			uptimePercentage: monitor.uptimePercentage,
-			recentChecks: monitor.recentChecks,
+			uptimePercentage: totalChecks ? upChecks / totalChecks : undefined,
+			recentChecks: monitor.recentChecks.map((check) => {
+				const { message: _message, statusCode: _statusCode, ...sample } = check;
+				return {
+					...sample,
+					status: !isConfirmedDown(history.intervals, monitor.id, check.createdAt),
+					responseTime: check.status ? check.responseTime : undefined,
+				};
+			}),
 		};
 
 		if (showURL) {
@@ -157,14 +167,20 @@ export class StatusPageService implements IStatusPageService {
 		const order = new Map(statusPage.monitors.map((id, i) => [id, i]));
 		const sorted = [...pageMonitors].sort((a, b) => (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER));
 
+		const bucketTimezone = statusPage.timezone ?? "Etc/UTC";
+		const history = await this.historyRepository.findHistory(
+			statusPage.teamId,
+			sorted.map(({ id }) => id),
+			range === "latest" ? undefined : STATUS_PAGE_RANGE_DAYS[range],
+			bucketTimezone,
+			now
+		);
+
 		if (range === "latest") {
-			return { statusPage, maintenanceWindows, monitors: sorted.map((monitor) => this.toPublicMonitor(monitor, showURL)) };
+			return { statusPage, maintenanceWindows, monitors: sorted.map((monitor) => this.toPublicMonitor(monitor, showURL, history)) };
 		}
 
-		const days = STATUS_PAGE_RANGE_DAYS[range];
-		const bucketTimezone = statusPage.timezone ?? "Etc/UTC";
-		const buckets = await this.checksRepository.getDailyStatusBuckets(statusPage.monitors, days, bucketTimezone);
-		const bucketsByMonitor = buckets.reduce((grouped, bucket) => {
+		const bucketsByMonitor = history.buckets.reduce((grouped, bucket) => {
 			const monitorBuckets = grouped.get(bucket.monitorId);
 			if (monitorBuckets) {
 				monitorBuckets.push(bucket);
@@ -181,7 +197,7 @@ export class StatusPageService implements IStatusPageService {
 			bucketTimezone,
 			checkTTLDays: dbSettings.checkTTL,
 			monitors: sorted.map((monitor) => ({
-				...this.toPublicMonitor(monitor, showURL),
+				...this.toPublicMonitor(monitor, showURL, history),
 				dailyChecks: bucketsByMonitor.get(monitor.id) ?? [],
 			})),
 		};

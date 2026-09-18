@@ -1,3 +1,4 @@
+import { MongoStatusPageHistoryRepository } from "../../src/domain/status-pages/status-page-history.repository.mongo.ts";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import express, { type ErrorRequestHandler, type RequestHandler } from "express";
 import type { Server } from "node:http";
@@ -20,7 +21,6 @@ import { MAX_STATUS_PAGE_UPDATES } from "../../src/domain/status-pages/status-pa
 import { statusUpdateBodyValidation } from "../../src/api/validation/statusPageValidation.ts";
 import type { ISettingsService } from "../../src/domain/app-settings/app-settings.service.ts";
 import type { IMonitorsRepository } from "../../src/domain/monitors/monitor.repository.interface.ts";
-import type { IChecksRepository } from "../../src/domain/checks/check.repository.interface.ts";
 import type { User } from "../../src/domain/users/user.type.ts";
 
 const id = () => new mongoose.Types.ObjectId().toString();
@@ -43,9 +43,7 @@ const service = new StatusPageService(
 			{ id: monitorId, name: "Public API", teamId, type: "http", status: "up", recentChecks: [], url: "http://private-target" },
 		],
 	} as unknown as IMonitorsRepository,
-	{
-		getDailyStatusBuckets: async () => [],
-	} as unknown as IChecksRepository,
+	new MongoStatusPageHistoryRepository(),
 	maintenanceRepo
 );
 let mongod: MongoMemoryServer;

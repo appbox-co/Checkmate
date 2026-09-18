@@ -1738,7 +1738,7 @@
 				"maintenance": "Some systems are under maintenance",
 				"partiallyPaused": "Some systems are paused",
 				"initializing": "Some systems are initializing",
-				"noMonitors": "No monitors have been configured",
+				"noMonitors": "No active monitors",
 				"unknown": "Unable to determine system status"
 			},
 			"table": {
@@ -1757,6 +1757,7 @@
 				}
 			},
 			"footer": {
+				"sourceCode": "Source code",
 				"poweredBy": "Powered by"
 			},
 			"editorial": {

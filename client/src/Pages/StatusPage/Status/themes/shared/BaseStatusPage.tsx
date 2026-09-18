@@ -121,7 +121,8 @@ export const BaseStatusPage = ({
 	);
 	const [chartMode, setChartMode] = useState<"heatmap" | "histogram">("heatmap");
 
-	const overall = resolveOverallStatus(monitors, t, config.overallStatusOptions);
+	const activeMonitors = monitors.filter((monitor) => monitor.status !== "paused");
+	const overall = resolveOverallStatus(activeMonitors, t, config.overallStatusOptions);
 	const logoSrc = statusPage.logo?.data
 		? `data:${statusPage.logo.contentType};base64,${statusPage.logo.data}`
 		: null;
@@ -140,7 +141,7 @@ export const BaseStatusPage = ({
 					statusPage={statusPage}
 					logoSrc={logoSrc}
 					overall={overall}
-					monitorCount={monitors.length}
+					monitorCount={activeMonitors.length}
 					styles={styles}
 				/>
 			</Stack>
@@ -149,7 +150,7 @@ export const BaseStatusPage = ({
 				statusPage={statusPage}
 				logoSrc={logoSrc}
 				overall={overall}
-				monitorCount={monitors.length}
+				monitorCount={activeMonitors.length}
 				styles={styles}
 			/>
 
@@ -242,7 +243,10 @@ export const BaseStatusPage = ({
 					const showInfra = isHardware && statusPage.showInfrastructure !== false;
 					const showChart = !isHardware && statusPage.showCharts !== false;
 					const badgeTone = monitorBadgeTone(monitor.status);
-					const uptimePercentage = formatPercentage(monitor.uptimePercentage ?? 0);
+					const uptimePercentage =
+						monitor.uptimePercentage == null
+							? "—"
+							: formatPercentage(monitor.uptimePercentage);
 
 					const cells =
 						range === "latest"
@@ -341,13 +345,8 @@ export const BaseStatusPage = ({
 				component="footer"
 				sx={styles.footer}
 			>
-				{t("pages.statusPages.footer.poweredBy")}{" "}
-				<a
-					href="https://checkmate.so"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					Checkmate
+				<a href="/source/checkmate-appbox-source.tar.gz">
+					{t("pages.statusPages.footer.sourceCode")}
 				</a>
 			</Box>
 		</Box>

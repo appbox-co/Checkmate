@@ -1,3 +1,4 @@
+import { MongoStatusPageHistoryRepository } from "@/domain/status-pages/status-page-history.repository.mongo.js";
 import { DiagnosticService, IDiagnosticService } from "@/domain/diagnostics/diagnostic.service.js";
 import { IInviteService, InviteService } from "@/domain/invites/invite.service.js";
 import { IMaintenanceWindowService, MaintenanceWindowService } from "@/domain/maintenance-windows/maintenance-window.service.js";
@@ -100,7 +101,7 @@ export const buildApi = (shared: SharedServices, jobScheduler: IJobScheduler): A
 		statusPagesRepository,
 		settingsService,
 		monitorsRepository,
-		checksRepository,
+		new MongoStatusPageHistoryRepository(),
 		maintenanceWindowsRepository
 	);
 	const tagsService = new TagsService(tagsRepository, monitorsRepository);

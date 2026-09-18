@@ -1,3 +1,4 @@
+import type { IStatusPageHistoryRepository } from "../../../src/domain/status-pages/status-page-history.repository.mongo.ts";
 import { describe, expect, it, jest } from "@jest/globals";
 import type { IMaintenanceWindowsRepository } from "../../../src/domain/maintenance-windows/maintenance-window.repository.interface.ts";
 import { StatusPageService } from "../../../src/domain/status-pages/status-page.service.ts";
@@ -91,8 +92,11 @@ const createService = (themesEnabled = true, clientHost = "http://localhost:5173
 	const monitorsRepo = createMonitorsRepo();
 	const checksRepo = createChecksRepo();
 	const maintenanceRepo = { findByMonitorIds: jest.fn().mockResolvedValue([]) } as unknown as IMaintenanceWindowsRepository;
-	const service = new StatusPageService(repo, settingsService, monitorsRepo, checksRepo, maintenanceRepo);
-	return { service, repo, settingsService, monitorsRepo, checksRepo };
+	const historyRepo = {
+		findHistory: jest.fn().mockResolvedValue({ intervals: [], buckets: [] }),
+	} as unknown as jest.Mocked<IStatusPageHistoryRepository>;
+	const service = new StatusPageService(repo, settingsService, monitorsRepo, historyRepo, maintenanceRepo);
+	return { service, repo, settingsService, monitorsRepo, checksRepo, historyRepo };
 };
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -323,7 +327,7 @@ describe("StatusPageService", () => {
 				name: "API Health",
 				type: "http",
 				status: "up",
-				uptimePercentage: 99.9,
+				uptimePercentage: undefined,
 				recentChecks: [],
 			});
 			expect(monitors[0]).not.toHaveProperty("checks");
@@ -366,7 +370,7 @@ describe("StatusPageService", () => {
 
 		describe("range", () => {
 			it("omits range-mode fields and never queries buckets for the default (latest) range", async () => {
-				const { service, checksRepo, monitorsRepo } = createService();
+				const { service, checksRepo, monitorsRepo, historyRepo } = createService();
 
 				const implicitLatest = await service.getPublicStatusPagePayload(publishedPage(), undefined);
 				const explicitLatest = await service.getPublicStatusPagePayload(publishedPage(), undefined, "latest");
@@ -382,10 +386,10 @@ describe("StatusPageService", () => {
 			});
 
 			it("attaches dailyChecks, passes the repo-trimmed recentChecks through, and echoes range metadata for a day range", async () => {
-				const { service, checksRepo, monitorsRepo } = createService();
+				const { service, checksRepo, monitorsRepo, historyRepo } = createService();
 				const bucket = { monitorId: "mon-1", date: "2026-08-01", totalChecks: 10, upChecks: 9, downChecks: 1, avgResponseTime: 120 };
-				const hardwareSnapshot = { id: "chk-1" } as CheckSnapshot;
-				(checksRepo.getDailyStatusBuckets as jest.Mock).mockResolvedValue([bucket]);
+				const hardwareSnapshot = { id: "chk-1", status: true, createdAt: "2026-08-01T12:00:00Z" } as CheckSnapshot;
+				(historyRepo.findHistory as jest.Mock).mockResolvedValue({ intervals: [], buckets: [bucket] });
 				(monitorsRepo.findByIds as jest.Mock).mockResolvedValue([
 					makeMonitor({ id: "mon-1", type: "hardware", recentChecks: [hardwareSnapshot] }),
 					makeMonitor({ id: "mon-2", recentChecks: [] }),
@@ -394,7 +398,7 @@ describe("StatusPageService", () => {
 
 				const payload = await service.getPublicStatusPagePayload(page, undefined, "30d");
 
-				expect(checksRepo.getDailyStatusBuckets).toHaveBeenCalledWith(["mon-1", "mon-2"], 30, "America/Toronto");
+				expect(historyRepo.findHistory).toHaveBeenCalledWith("team-1", ["mon-1", "mon-2"], 30, "America/Toronto", expect.any(Date));
 				expect(monitorsRepo.findByIds).toHaveBeenCalledWith(["mon-1", "mon-2"], { recentChecks: "latestHardware" });
 				expect(payload).toMatchObject({ range: "30d", bucketTimezone: "America/Toronto", checkTTLDays: 30 });
 				expect(payload.monitors[0].recentChecks).toEqual([hardwareSnapshot]);
@@ -407,21 +411,22 @@ describe("StatusPageService", () => {
 			});
 
 			it("falls back to Etc/UTC when the page has no timezone and defaults dailyChecks to empty", async () => {
-				const { service, checksRepo } = createService();
+				const { service, checksRepo, historyRepo } = createService();
 
 				const payload = await service.getPublicStatusPagePayload(publishedPage(), undefined, "60d");
 
-				expect(checksRepo.getDailyStatusBuckets).toHaveBeenCalledWith(["mon-1"], 60, "Etc/UTC");
+				expect(historyRepo.findHistory).toHaveBeenCalledWith("team-1", ["mon-1"], 60, "Etc/UTC", expect.any(Date));
 				expect(payload.bucketTimezone).toBe("Etc/UTC");
 				expect(payload.monitors[0].dailyChecks).toEqual([]);
 			});
 
 			it("does not bypass the unpublished-page 403", async () => {
-				const { service, checksRepo } = createService();
+				const { service, checksRepo, historyRepo } = createService();
 				const unpublished = makeStatusPage({ isPublished: false, teamId: "team-A" });
 
 				await expect(service.getPublicStatusPagePayload(unpublished, undefined, "90d")).rejects.toMatchObject({ status: 403 });
 				expect(checksRepo.getDailyStatusBuckets).not.toHaveBeenCalled();
+				expect(historyRepo.findHistory).not.toHaveBeenCalled();
 			});
 		});
 	});

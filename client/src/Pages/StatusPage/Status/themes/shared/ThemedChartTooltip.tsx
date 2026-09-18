@@ -16,7 +16,9 @@ export const ThemedChartTooltip = ({ check }: { check: CheckSnapshot }) => {
 				fontWeight={600}
 			>
 				{check.status
-					? formatMs(check.responseTime)
+					? check.responseTime == null
+						? t("pages.statusPages.monitorsList.status.up")
+						: formatMs(check.responseTime)
 					: t("pages.statusPages.monitorsList.chart.downTooltip")}
 			</Typography>
 			<Typography
