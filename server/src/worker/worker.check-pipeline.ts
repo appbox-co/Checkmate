@@ -9,9 +9,10 @@ import { AppError } from "@/utils/AppError.js";
 import { supportsGeoCheck } from "@/domain/monitors/monitor.type.js";
 import { IGeoChecksService } from "@/domain/geo-checks/geo-check.service.js";
 
-import type { GeoContinent } from "@/domain/geo-checks/geo-check.type.js";
+import type { GeoContinent, GeoCheckFailure } from "@/domain/geo-checks/geo-check.type.js";
 
 const SERVICE_NAME = "CheckPipeline";
+export const GEO_FAILURE_CONFIRMATION_MS = 60000;
 
 export interface ICheckPipeline {
 	run(monitor: Monitor): Promise<MonitorEvaluation | null>; // null = skipped
@@ -83,6 +84,7 @@ export class GeoChecksPipeline implements ICheckPipeline {
 		const lastFullCheckAt = state?.lastFullCheckAt ?? state?.checkedAt;
 		const fullCheck = !lastFullCheckAt || Date.now() - Date.parse(lastFullCheckAt) >= (monitor.geoCheckInterval ?? 900000);
 		const failedLocations = new Set(state?.failures.map((failure) => failure.location.continent) ?? []);
+		const previousPending = new Map((state?.pendingFailures ?? []).map((failure) => [failure.location.continent, failure]));
 		const locations = monitor.geoCheckLocations.filter(
 			(continent) => fullCheck || failedLocations.has(continent) || state?.pendingLocations?.includes(continent)
 		);
@@ -102,21 +104,46 @@ export class GeoChecksPipeline implements ICheckPipeline {
 		let results = geoCheck.results.filter((result) => locations.includes(result.location.continent));
 		const retryLocations = [
 			...new Set(
-				results.filter((result) => !result.status && !failedLocations.has(result.location.continent)).map((result) => result.location.continent)
+				results
+					.filter((result) => !result.status && !failedLocations.has(result.location.continent) && !previousPending.has(result.location.continent))
+					.map((result) => result.location.continent)
 			),
 		];
 		const pendingLocations: GeoContinent[] = [];
+		const pendingFailures: GeoCheckFailure[] = [];
+		const initialResults = results;
 		if (retryLocations.length) {
-			// A new outage needs a second conclusive failure from the same region.
+			// An immediate retry can dismiss a transient failure; it cannot open an outage.
 			const retry = await this.geoChecksService.buildGeoCheck(monitor, retryLocations);
 			if (retry) this.bufferService.addGeoCheckToBuffer(retry);
 			results = results.filter((result) => !retryLocations.includes(result.location.continent));
 			for (const continent of retryLocations) {
 				const confirmed = retry?.results.filter((result) => result.location.continent === continent) ?? [];
 				if (confirmed.length) results.push(...confirmed);
-				else pendingLocations.push(continent);
+				else {
+					pendingLocations.push(continent);
+					const first = initialResults.find((result) => !result.status && result.location.continent === continent)!;
+					pendingFailures.push({ location: first.location, statusCode: first.statusCode, checkedAt: startedAt });
+				}
 			}
 		}
+
+		// Confirm only on a later acquisition started at least a minute after the first
+		// failed acquisition. Provider delays inside one attempt cannot satisfy this.
+		results = results.filter((result) => {
+			const continent = result.location.continent;
+			if (result.status || failedLocations.has(continent)) return true;
+			const previous = previousPending.get(continent);
+			const firstFailedAt = Date.parse(previous?.checkedAt ?? "");
+			if (Number.isFinite(firstFailedAt) && Date.parse(startedAt) - firstFailedAt >= GEO_FAILURE_CONFIRMATION_MS) return true;
+			pendingLocations.push(continent);
+			pendingFailures.push({
+				location: result.location,
+				statusCode: result.statusCode,
+				checkedAt: Number.isFinite(firstFailedAt) ? previous!.checkedAt : startedAt,
+			});
+			return false;
+		});
 
 		// Timestamp the final decision after the retry so local checks evaluated while
 		// waiting cannot cause this observation to be skipped as older history.
@@ -125,7 +152,7 @@ export class GeoChecksPipeline implements ICheckPipeline {
 			geoCheckToCheck(
 				monitor,
 				{ ...geoCheck, results, createdAt: completedAt, updatedAt: completedAt },
-				{ ...(fullCheck ? { fullCheckAt: startedAt } : { recoveryOnly: true }), pendingLocations }
+				{ ...(fullCheck ? { fullCheckAt: startedAt } : { recoveryOnly: true }), pendingLocations, pendingFailures }
 			)
 		);
 

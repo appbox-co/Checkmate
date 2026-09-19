@@ -57,6 +57,8 @@ const geoCheckLocationSchema = new Schema<GeoCheckLocation>(
 	{ _id: false }
 );
 
+const packetLossSchema = new Schema({ sent: Number, received: Number, lost: Number, percent: Number }, { _id: false });
+
 const geoCheckResultSchema = new Schema<GeoCheckResult>(
 	{
 		location: {
@@ -71,22 +73,11 @@ const geoCheckResultSchema = new Schema<GeoCheckResult>(
 			type: Number,
 			required: true,
 		},
+		packetLoss: { type: packetLossSchema, default: undefined },
 		timings: {
 			type: geoCheckTimingsSchema,
 			required: true,
 		},
-	},
-	{ _id: false }
-);
-
-export const geoCheckObservationSchema = new Schema<GeoCheckObservation>(
-	{
-		configuration: { type: String, required: true },
-		checkedAt: { type: String, required: true },
-		fullCheckAt: { type: String, default: undefined },
-		recoveryOnly: { type: Boolean, default: undefined },
-		pendingLocations: { type: [{ type: String, enum: GeoContinents }], default: undefined },
-		results: { type: [geoCheckResultSchema], default: [] },
 	},
 	{ _id: false }
 );
@@ -100,12 +91,26 @@ const geoCheckFailureSchema = new Schema<GeoCheckFailure>(
 	{ _id: false }
 );
 
+export const geoCheckObservationSchema = new Schema<GeoCheckObservation>(
+	{
+		configuration: { type: String, required: true },
+		checkedAt: { type: String, required: true },
+		fullCheckAt: { type: String, default: undefined },
+		recoveryOnly: { type: Boolean, default: undefined },
+		pendingLocations: { type: [{ type: String, enum: GeoContinents }], default: undefined },
+		pendingFailures: { type: [geoCheckFailureSchema], default: undefined },
+		results: { type: [geoCheckResultSchema], default: [] },
+	},
+	{ _id: false }
+);
+
 export const geoCheckStateSchema = new Schema<GeoCheckState>(
 	{
 		configuration: { type: String, required: true },
 		checkedAt: { type: String, default: undefined },
 		lastFullCheckAt: { type: String, default: undefined },
 		pendingLocations: { type: [{ type: String, enum: GeoContinents }], default: undefined },
+		pendingFailures: { type: [geoCheckFailureSchema], default: undefined },
 		failures: { type: [geoCheckFailureSchema], default: [] },
 		outageLocations: { type: [geoCheckFailureSchema], default: [] },
 	},

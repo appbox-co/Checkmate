@@ -26,11 +26,19 @@ export interface GeoCheckLocation {
 	latitude: number;
 }
 
+export interface GeoCheckPacketLoss {
+	sent: number;
+	received: number;
+	lost: number;
+	percent: number;
+}
+
 export interface GeoCheckResult {
 	location: GeoCheckLocation;
 	status: boolean;
 	statusCode: number;
 	timings: GeoCheckTimings;
+	packetLoss?: GeoCheckPacketLoss;
 }
 
 export interface GeoCheck {
@@ -52,6 +60,7 @@ export interface FlatGeoCheck {
 	status: boolean;
 	statusCode: number;
 	timings: GeoCheckTimings;
+	packetLoss?: GeoCheckPacketLoss;
 	createdAt: string;
 	updatedAt: string;
 }

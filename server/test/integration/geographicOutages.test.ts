@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { MonitorModel } from "../../src/domain/monitors/monitor.model.ts";
 import { CheckModel } from "../../src/domain/checks/check.model.ts";
+import { GeoCheckModel } from "../../src/domain/geo-checks/geo-check.model.ts";
+import MongoGeoChecksRepository from "../../src/domain/geo-checks/geo-check.repository.mongo.ts";
 import { IncidentModel } from "../../src/domain/incidents/incident.model.ts";
 import MongoMonitorsRepository from "../../src/domain/monitors/monitor.repository.mongo.ts";
 import MongoChecksRepository from "../../src/domain/checks/check.repository.mongo.ts";
@@ -36,14 +38,14 @@ const buffers: BufferService[] = [];
 beforeAll(async () => {
 	mongod = await MongoMemoryServer.create();
 	await mongoose.connect(mongod.getUri());
-	await Promise.all([MonitorModel.init(), CheckModel.init(), IncidentModel.init()]);
+	await Promise.all([MonitorModel.init(), CheckModel.init(), IncidentModel.init(), GeoCheckModel.init()]);
 }, 120000);
 afterAll(async () => {
 	await mongoose.disconnect();
 	await mongod?.stop();
 });
 beforeEach(async () => {
-	await Promise.all([MonitorModel.deleteMany({}), CheckModel.deleteMany({}), IncidentModel.deleteMany({})]);
+	await Promise.all([MonitorModel.deleteMany({}), CheckModel.deleteMany({}), IncidentModel.deleteMany({}), GeoCheckModel.deleteMany({})]);
 	now = Date.now();
 	jest.spyOn(Date, "now").mockImplementation(() => now);
 });
@@ -117,7 +119,11 @@ const runtime = () => {
 	});
 	const incidents = new MongoIncidentsRepository();
 	const incidentService = new IncidentService(logger as any, incidents, repo, {} as any, builder);
-	const geoService = { buildGeoCheck: jest.fn<any>(), createGeoChecks: jest.fn<any>().mockResolvedValue([]) };
+	const geoRepository = new MongoGeoChecksRepository();
+	const geoService = {
+		buildGeoCheck: jest.fn<any>(),
+		createGeoChecks: jest.fn<any>().mockImplementation((checks: GeoCheck[]) => geoRepository.createGeoChecks(checks)),
+	};
 	const jobs = { upsertEvaluate: jest.fn<any>().mockResolvedValue(undefined) };
 	const buffer = new BufferService(
 		logger as any,
@@ -154,6 +160,11 @@ const runtime = () => {
 		await pipeline.run(monitor);
 		return drain(id);
 	};
+	const confirm = async (id: string, results: GeoCheckResult[]) => {
+		await geo(id, results);
+		now += 60000;
+		return geo(id, results);
+	};
 	const local = async (id: string, healthy: boolean) => {
 		const monitor = await repo.findById(id, teamId);
 		const check = checkService.toCheck({
@@ -171,7 +182,25 @@ const runtime = () => {
 		return (await drain(id))[0];
 	};
 	const messages = (): NotificationMessage[] => sendMessage.mock.calls.map((call) => call[1]);
-	return { repo, checks, geo, local, evaluate, drain, buffer, pipeline, geoService, jobs, incidents, maintenance, stats, messages, sendMessage };
+	return {
+		repo,
+		checks,
+		geo,
+		confirm,
+		geoRepository,
+		local,
+		evaluate,
+		drain,
+		buffer,
+		pipeline,
+		geoService,
+		jobs,
+		incidents,
+		maintenance,
+		stats,
+		messages,
+		sendMessage,
+	};
 };
 
 describe("geographic outages through persisted checks and the normal evaluator", () => {
@@ -245,7 +274,7 @@ describe("geographic outages through persisted checks and the normal evaluator",
 		expect(await r.incidents.findActiveByMonitorId(id, teamId)).toBeNull();
 	});
 
-	it("evaluates the confirmed retry after local checks completed while the retry was in flight", async () => {
+	it("persists pending confirmation after local checks completed while the immediate retry was in flight", async () => {
 		const id = await seed();
 		const r = runtime();
 		const monitor = await r.repo.findById(id, teamId);
@@ -259,6 +288,10 @@ describe("geographic outages through persisted checks and the normal evaluator",
 			});
 		await r.pipeline.run(monitor);
 		await r.drain(id);
+		expect((await r.repo.findById(id, teamId)).status).toBe("up");
+		expect(r.messages()).toHaveLength(0);
+		now += 60000;
+		await r.geo(id, [result("EU", false)]);
 		expect((await r.repo.findById(id, teamId)).status).toBe("down");
 		expect(r.messages()).toHaveLength(1);
 		expect(r.messages()[0].content.summary).toContain("Frankfurt");
@@ -268,7 +301,7 @@ describe("geographic outages through persisted checks and the normal evaluator",
 	it("opens one incident when one region fails, preserves it across local successes/restart, reminds with location and recovers", async () => {
 		const id = await seed();
 		const first = runtime();
-		const [failed] = await first.geo(id, [result("EU", true), result("NA", false)]);
+		const [failed] = await first.confirm(id, [result("EU", true), result("NA", false)]);
 		expect(failed.monitor.status).toBe("down");
 		expect(failed.decision.shouldCreateIncident).toBe(true);
 		expect(first.jobs.upsertEvaluate).toHaveBeenCalledWith(id, expect.any(Number));
@@ -297,7 +330,7 @@ describe("geographic outages through persisted checks and the normal evaluator",
 		const r = runtime();
 		const monitor = await r.repo.findById(id, teamId);
 		const olderSuccess = geoCheckToCheck(monitor, observation(monitor, [result("EU", true), result("NA", true)]));
-		await r.geo(id, [result("EU", false), result("NA", false)]);
+		await r.confirm(id, [result("EU", false), result("NA", false)]);
 		expect(r.messages()[0].content.summary).toContain("Frankfurt");
 		expect(r.messages()[0].content.summary).toContain("New York");
 		await r.geo(id, [result("EU", true)]);
@@ -314,7 +347,7 @@ describe("geographic outages through persisted checks and the normal evaluator",
 		const id = await seed();
 		const r = runtime();
 		for (let i = 0; i < 3; i++) await r.local(id, false);
-		await r.geo(id, [result("EU", false), result("NA", true)]);
+		await r.confirm(id, [result("EU", false), result("NA", true)]);
 		const [geoHealthy] = await r.geo(id, [result("EU", true), result("NA", true)]);
 		expect(geoHealthy.monitor.status).toBe("down");
 		expect(geoHealthy.decision.shouldResolveIncident).toBe(false);
@@ -329,7 +362,7 @@ describe("geographic outages through persisted checks and the normal evaluator",
 		const oldCheck = geoCheckToCheck(monitor, observation(monitor, [result("EU", false)]));
 		await r.repo.updateById(id, teamId, { url: "https://changed.example.test/health" });
 		expect((await r.evaluate(id, oldCheck)).monitor.status).toBe("up");
-		await r.geo(id, [result("EU", false)]);
+		await r.confirm(id, [result("EU", false)]);
 		await r.repo.updateById(id, teamId, { geoCheckEnabled: false });
 		expect((await r.local(id, true)).monitor.status).toBe("up");
 		await r.repo.updateById(id, teamId, { geoCheckEnabled: true });
@@ -356,7 +389,7 @@ describe("geographic outages through persisted checks and the normal evaluator",
 	it("initializes down from a confirmed failing region without filling the local status window", async () => {
 		const id = await seed({ status: "initializing", statusWindow: [] });
 		const r = runtime();
-		const [failed] = await r.geo(id, [result("EU", false)]);
+		const [failed] = await r.confirm(id, [result("EU", false)]);
 		expect(failed.monitor.status).toBe("down");
 		expect(failed.monitor.statusWindow).toEqual([]);
 		expect((await r.local(id, true)).monitor.status).toBe("down");
@@ -377,14 +410,147 @@ describe("geographic outages through persisted checks and the normal evaluator",
 	it("records failed samples in history and strips server-owned geo state from edits", async () => {
 		const id = await seed();
 		const r = runtime();
-		await r.geo(id, [result("NA", false)]);
+		await r.confirm(id, [result("NA", false)]);
 		await r.local(id, true);
 		const history = await r.checks.findUnevaluatedByMonitorId(id, 0);
-		expect(history.map((check) => check.status)).toEqual([false, false]);
-		expect(history[1].localStatus).toBe(true);
-		expect(history[0].geoCheck?.results[0].location.city).toBe("New York");
+		expect(history.map((check) => check.status)).toEqual([true, false, false]);
+		expect(history[2].localStatus).toBe(true);
+		expect(history[1].geoCheck?.results[0].location.city).toBe("New York");
 		expect(editMonitorBodyValidation.parse({ geoCheckEnabled: true, geoCheckState: { failures: [] }, geoCheckLocalStatus: "up" })).not.toHaveProperty(
 			"geoCheckState"
 		);
+	});
+	it("does not send a down/recovery pair for a region that recovers within 45 seconds", async () => {
+		const id = await seed({ type: "ping", url: "192.0.2.1" });
+		const r = runtime();
+		await r.geo(id, [result("EU", false), result("NA", true)]);
+		const pending = await r.repo.findById(id, teamId);
+		expect(pending.status).toBe("up");
+		expect(pending.geoCheckState?.failures).toEqual([]);
+		expect(pending.geoCheckState?.pendingFailures).toEqual([expect.objectContaining({ location: expect.objectContaining({ continent: "EU" }) })]);
+		for (let i = 0; i < 3; i++) await r.local(id, true);
+		now += 45000;
+		await r.geo(id, [result("EU", true)]);
+		expect((await r.repo.findById(id, teamId)).geoCheckState).toMatchObject({ pendingFailures: [], pendingLocations: [], failures: [] });
+		expect(r.messages()).toEqual([]);
+		expect(await IncidentModel.countDocuments({ monitorId: id })).toBe(0);
+		expect(await GeoCheckModel.countDocuments({ "metadata.monitorId": new mongoose.Types.ObjectId(id) })).toBe(3);
+	});
+
+	it("persists the first failure across restart and confirms only a new acquisition after the 60-second boundary", async () => {
+		const id = await seed();
+		const first = runtime();
+		await first.geo(id, [result("EU", true), result("NA", false)]);
+		const pending = await first.repo.findById(id, teamId);
+		const firstFailedAt = pending.geoCheckState!.pendingFailures![0].checkedAt;
+		expect(first.messages()).toEqual([]);
+		const restarted = runtime();
+		const runAt = async (offset: number, delay = 0) => {
+			now = Date.parse(firstFailedAt) + offset;
+			const monitor = await restarted.repo.findById(id, teamId);
+			restarted.geoService.buildGeoCheck.mockImplementation(async () => {
+				now += delay;
+				return observation(monitor, [result("NA", false)]);
+			});
+			await restarted.pipeline.run(monitor);
+			await restarted.drain(id);
+		};
+		// A request started early cannot qualify just because the provider is slow.
+		await runAt(59000, 2000);
+		expect((await restarted.repo.findById(id, teamId)).status).toBe("up");
+		expect(restarted.messages()).toEqual([]);
+		expect((await restarted.repo.findById(id, teamId)).geoCheckState!.pendingFailures![0].checkedAt).toBe(firstFailedAt);
+		await runAt(62000);
+		expect(restarted.geoService.buildGeoCheck.mock.calls.map((call) => call[1])).toEqual([["NA"], ["NA"]]);
+		expect((await restarted.repo.findById(id, teamId)).status).toBe("down");
+		expect(restarted.messages()).toHaveLength(1);
+		expect(restarted.messages()[0].content.summary).toContain("New York, US, NA");
+		expect(await IncidentModel.countDocuments({ monitorId: id })).toBe(1);
+		await restarted.geo(id, [result("NA", true)]);
+		expect(restarted.messages()).toHaveLength(2);
+		expect(await restarted.incidents.findActiveByMonitorId(id, teamId)).toBeNull();
+	});
+
+	it("never opens an outage from a single slow immediate-retry attempt", async () => {
+		const id = await seed();
+		const r = runtime();
+		const monitor = await r.repo.findById(id, teamId);
+		r.geoService.buildGeoCheck
+			.mockImplementationOnce(async () => observation(monitor, [result("EU", false)]))
+			.mockImplementationOnce(async () => {
+				now += 90000;
+				return observation(monitor, [result("EU", false)]);
+			});
+		await r.pipeline.run(monitor);
+		await r.drain(id);
+		expect((await r.repo.findById(id, teamId)).status).toBe("up");
+		expect(r.messages()).toEqual([]);
+		expect(await IncidentModel.countDocuments({ monitorId: id })).toBe(0);
+	});
+
+	it("keeps a pending region inconclusive during provider errors and restarts its timer after success", async () => {
+		const id = await seed();
+		const r = runtime();
+		await r.geo(id, [result("EU", false), result("NA", true)]);
+		const firstAt = (await r.repo.findById(id, teamId)).geoCheckState!.pendingFailures![0].checkedAt;
+		now += 60000;
+		await r.geo(id, null);
+		expect((await r.repo.findById(id, teamId)).status).toBe("up");
+		expect(r.messages()).toEqual([]);
+		await r.geo(id, [result("EU", true)]);
+		now += 900000;
+		await r.geo(id, [result("EU", false), result("NA", true)]);
+		expect((await r.repo.findById(id, teamId)).geoCheckState!.pendingFailures![0].checkedAt).not.toBe(firstAt);
+		expect((await r.repo.findById(id, teamId)).status).toBe("up");
+		expect(r.messages()).toEqual([]);
+	});
+
+	it("stores partial packet loss through MongoDB and the existing geographic history API without an outage", async () => {
+		const id = await seed({ type: "ping", url: "192.0.2.1" });
+		const r = runtime();
+		const packetLoss = { sent: 3, received: 2, lost: 1, percent: 33.33333333333333 };
+		await r.geo(id, [{ ...result("EU", true), packetLoss }]);
+		expect(r.geoService.buildGeoCheck).toHaveBeenCalledTimes(1);
+		const history = await r.geoRepository.findByMonitorId(id, "desc", "day", 0, 10);
+		expect(history.geoChecks[0]).toMatchObject({ status: true, packetLoss });
+		expect((await r.checks.findUnevaluatedByMonitorId(id, 0))[0].geoCheck?.results[0].packetLoss).toEqual(packetLoss);
+		expect(r.messages()).toEqual([]);
+		expect(await IncidentModel.countDocuments({ monitorId: id })).toBe(0);
+	});
+	it("does not confirm at 59,999 ms and confirms a separate acquisition at exactly 60,000 ms", async () => {
+		const id = await seed();
+		const r = runtime();
+		await r.geo(id, [result("EU", false), result("NA", true)]);
+		const started = Date.parse((await r.repo.findById(id, teamId)).geoCheckState!.pendingFailures![0].checkedAt);
+		for (const elapsed of [59999, 60000]) {
+			now = started + elapsed;
+			const monitor = await r.repo.findById(id, teamId);
+			r.geoService.buildGeoCheck.mockImplementation(async () => observation(monitor, [result("EU", false)]));
+			await r.pipeline.run(monitor);
+			await r.drain(id);
+			expect((await r.repo.findById(id, teamId)).status).toBe(elapsed === 60000 ? "down" : "up");
+			expect(r.messages()).toHaveLength(elapsed === 60000 ? 1 : 0);
+		}
+	});
+
+	it("confirms each region using its own first-failure time", async () => {
+		const id = await seed();
+		const r = runtime();
+		await r.geo(id, [result("EU", false), result("NA", true)]);
+		now += 900000;
+		await r.geo(id, [result("EU", false), result("NA", false)]);
+		const first = await r.repo.findById(id, teamId);
+		expect(first.geoCheckState?.failures.map((failure) => failure.location.continent)).toEqual(["EU"]);
+		expect(first.geoCheckState?.pendingFailures?.map((failure) => failure.location.continent)).toEqual(["NA"]);
+		expect(r.messages()).toHaveLength(1);
+		expect(r.messages()[0].content.summary).not.toContain("New York");
+		now += 60000;
+		await r.geo(id, [result("EU", true), result("NA", false)]);
+		expect((await r.repo.findById(id, teamId)).geoCheckState?.failures.map((failure) => failure.location.continent)).toEqual(["NA"]);
+		expect(r.messages()).toHaveLength(1);
+		await r.geo(id, [result("NA", true)]);
+		expect(r.messages()).toHaveLength(2);
+		expect(r.messages()[1].content.summary).toContain("Frankfurt");
+		expect(r.messages()[1].content.summary).toContain("New York");
 	});
 });

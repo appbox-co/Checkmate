@@ -28,11 +28,19 @@ export interface GeoCheckLocation {
 	latitude: number;
 }
 
+export interface GeoCheckPacketLoss {
+	sent: number;
+	received: number;
+	lost: number;
+	percent: number;
+}
+
 export interface GeoCheckResult {
 	location: GeoCheckLocation;
 	status: boolean;
 	statusCode: number;
 	timings: GeoCheckTimings;
+	packetLoss?: GeoCheckPacketLoss;
 }
 
 // A geographic observation travels through the existing per-monitor evaluation queue.
@@ -44,6 +52,8 @@ export interface GeoCheckObservation {
 	fullCheckAt?: string;
 	recoveryOnly?: boolean;
 	pendingLocations?: GeoContinent[];
+	// First failures awaiting a later measurement, persisted across worker restarts.
+	pendingFailures?: GeoCheckFailure[];
 }
 
 export interface GeoCheckFailure {
@@ -57,6 +67,8 @@ export interface GeoCheckState {
 	checkedAt?: string; // absent until the first conclusive geographic observation
 	lastFullCheckAt?: string;
 	pendingLocations?: GeoContinent[];
+	// First failures awaiting a later measurement, persisted across worker restarts.
+	pendingFailures?: GeoCheckFailure[];
 	failures: GeoCheckFailure[];
 	// Retain affected locations until the combined local/geographic outage recovers.
 	outageLocations: GeoCheckFailure[];
@@ -81,6 +93,7 @@ export interface FlatGeoCheck {
 	status: boolean;
 	statusCode: number;
 	timings: GeoCheckTimings;
+	packetLoss?: GeoCheckPacketLoss;
 	createdAt: string;
 	updatedAt: string;
 }

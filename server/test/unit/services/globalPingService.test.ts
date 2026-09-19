@@ -465,7 +465,32 @@ describe("GlobalPingService", () => {
 			expect(results[0].timings.dns).toBe(0);
 		});
 
-		it("transforms ping results with loss as failed", async () => {
+		it.each([1, 2, 3])("keeps a ping with %i of three replies up and records packet loss", async (received) => {
+			const { service } = createService();
+			const loss = ((3 - received) / 3) * 100;
+			mockGotGet.mockResolvedValue({
+				body: {
+					status: "finished",
+					results: [
+						makeProbeResult({
+							result: {
+								status: "finished",
+								stats: { min: 250, max: 270, avg: 262.833, total: 3, loss, rcv: received, drop: 3 - received },
+							},
+						}),
+					],
+				},
+			});
+			const [result] = await service.pollForResults("partial-loss");
+			expect(result).toMatchObject({
+				status: true,
+				statusCode: 200,
+				timings: { total: 262.833 },
+				packetLoss: { sent: 3, received, lost: 3 - received, percent: loss },
+			});
+		});
+
+		it("marks a ping down only when no packets received a reply", async () => {
 			const { service } = createService();
 			mockGotGet.mockResolvedValue({
 				body: {
@@ -474,17 +499,34 @@ describe("GlobalPingService", () => {
 						makeProbeResult({
 							result: {
 								status: "finished",
-								stats: { min: 10, max: 30, avg: 20, total: 3, loss: 2, rcv: 1, drop: 2 },
+								stats: { min: null, max: null, avg: null, total: 3, loss: 100, rcv: 0, drop: 3 },
 							},
 						}),
 					],
 				},
 			});
+			expect(await service.pollForResults("no-replies")).toEqual([
+				expect.objectContaining({
+					status: false,
+					statusCode: 5000,
+					timings: expect.objectContaining({ total: 0 }),
+					packetLoss: { sent: 3, received: 0, lost: 3, percent: 100 },
+				}),
+			]);
+		});
 
-			const results = await service.pollForResults("meas-123");
-
-			expect(results[0].status).toBe(false);
-			expect(results[0].statusCode).toBe(5000);
+		it.each([
+			{ total: 3, rcv: undefined, loss: 100 },
+			{ total: 3, rcv: -1, loss: 100 },
+			{ total: 3, rcv: 4, loss: 0 },
+			{ total: 3, rcv: 0.5, loss: 50 },
+			{ total: 0, rcv: 0, loss: 100 },
+			{ total: 3, rcv: 0, loss: Number.NaN },
+			{ total: 3, rcv: 0, loss: 101 },
+		])("ignores inconclusive ping statistics %j", async (stats) => {
+			const { service } = createService();
+			mockGotGet.mockResolvedValue({ body: { status: "finished", results: [makeProbeResult({ result: { status: "finished", stats } })] } });
+			expect(await service.pollForResults("invalid-statistics")).toEqual([]);
 		});
 
 		it("uses empty string for null state in location", async () => {

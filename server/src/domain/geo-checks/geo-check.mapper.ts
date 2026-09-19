@@ -19,6 +19,16 @@ const result = (value: GeoCheckResult): GeoCheckResult => ({
 	location: location(value.location),
 	status: value.status,
 	statusCode: value.statusCode,
+	...(value.packetLoss
+		? {
+				packetLoss: {
+					sent: value.packetLoss.sent,
+					received: value.packetLoss.received,
+					lost: value.packetLoss.lost,
+					percent: value.packetLoss.percent,
+				},
+			}
+		: {}),
 	timings: {
 		total: value.timings.total,
 		dns: value.timings.dns,
@@ -34,6 +44,7 @@ export const toGeoCheckState = (value?: GeoCheckState): GeoCheckState | undefine
 		checkedAt: value.checkedAt,
 		lastFullCheckAt: value.lastFullCheckAt,
 		pendingLocations: value.pendingLocations && [...value.pendingLocations],
+		pendingFailures: value.pendingFailures?.map(failure),
 		failures: value.failures.map(failure),
 		outageLocations: value.outageLocations.map(failure),
 	};
@@ -44,5 +55,6 @@ export const toGeoCheckObservation = (value?: GeoCheckObservation): GeoCheckObse
 		fullCheckAt: value.fullCheckAt,
 		recoveryOnly: value.recoveryOnly,
 		pendingLocations: value.pendingLocations && [...value.pendingLocations],
+		pendingFailures: value.pendingFailures?.map(failure),
 		results: value.results.map(result),
 	};

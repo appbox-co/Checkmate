@@ -35,6 +35,16 @@ class MongoGeoChecksRepository implements IGeoChecksRepository {
 				},
 				status: result.status ?? false,
 				statusCode: result.statusCode ?? 0,
+				...(result.packetLoss
+					? {
+							packetLoss: {
+								sent: result.packetLoss.sent,
+								received: result.packetLoss.received,
+								lost: result.packetLoss.lost,
+								percent: result.packetLoss.percent,
+							},
+						}
+					: {}),
 				timings: {
 					total: result.timings?.total ?? 0,
 					dns: result.timings?.dns ?? 0,
@@ -117,6 +127,7 @@ class MongoGeoChecksRepository implements IGeoChecksRepository {
 					status: "$results.status",
 					statusCode: "$results.statusCode",
 					timings: "$results.timings",
+					packetLoss: "$results.packetLoss",
 					createdAt: 1,
 					updatedAt: 1,
 				},
@@ -154,6 +165,7 @@ class MongoGeoChecksRepository implements IGeoChecksRepository {
 			status: doc.status,
 			statusCode: doc.statusCode,
 			timings: doc.timings,
+			...(doc.packetLoss ? { packetLoss: doc.packetLoss } : {}),
 			createdAt: new Date(doc.createdAt).toISOString(),
 			updatedAt: new Date(doc.updatedAt).toISOString(),
 		}));

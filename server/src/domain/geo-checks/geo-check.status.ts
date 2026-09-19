@@ -34,11 +34,13 @@ export const mergeGeoObservation = (monitor: Monitor, observation: GeoCheckObser
 	const previous = getGeoCheckState(monitor);
 	const failures = [...(previous?.failures ?? [])];
 	const pending = new Set(previous?.pendingLocations ?? []);
+	const pendingFailures = new Map((previous?.pendingFailures ?? []).map((failure) => [failure.location.continent, failure]));
 	for (const continent of monitor.geoCheckLocations ?? []) {
 		const results = observation.results.filter((result) => result.location.continent === continent);
 		// A missing/offline probe is not evidence of recovery. Any failed probe wins.
 		if (!results.length) continue;
 		pending.delete(continent);
+		pendingFailures.delete(continent);
 		for (let index = failures.length - 1; index >= 0; index--) {
 			if (failures[index]?.location.continent === continent) failures.splice(index, 1);
 		}
@@ -53,6 +55,10 @@ export const mergeGeoObservation = (monitor: Monitor, observation: GeoCheckObser
 		outageLocations.push(failure);
 	}
 	for (const continent of observation.pendingLocations ?? []) pending.add(continent);
+	for (const failure of observation.pendingFailures ?? []) {
+		pendingFailures.set(failure.location.continent, failure);
+		pending.add(failure.location.continent);
+	}
 	return {
 		configuration: observation.configuration,
 		checkedAt: observation.checkedAt,
@@ -60,6 +66,7 @@ export const mergeGeoObservation = (monitor: Monitor, observation: GeoCheckObser
 			? (previous?.lastFullCheckAt ?? previous?.checkedAt)
 			: (observation.fullCheckAt ?? observation.checkedAt),
 		pendingLocations: [...pending].filter((continent) => monitor.geoCheckLocations?.includes(continent)),
+		pendingFailures: [...pendingFailures.values()].filter((failure) => monitor.geoCheckLocations?.includes(failure.location.continent)),
 		failures,
 		outageLocations,
 	};
@@ -68,7 +75,7 @@ export const mergeGeoObservation = (monitor: Monitor, observation: GeoCheckObser
 export const geoCheckToCheck = (
 	monitor: Monitor,
 	geoCheck: GeoCheck,
-	metadata: Pick<GeoCheckObservation, "fullCheckAt" | "recoveryOnly" | "pendingLocations"> = {}
+	metadata: Pick<GeoCheckObservation, "fullCheckAt" | "recoveryOnly" | "pendingLocations" | "pendingFailures"> = {}
 ): Check => {
 	const observation: GeoCheckObservation = {
 		configuration: geoCheckConfiguration(monitor),

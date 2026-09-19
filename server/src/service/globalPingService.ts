@@ -52,9 +52,9 @@ interface GlobalPingProbeResult {
 			download: number;
 		};
 		stats?: {
-			min: number;
-			max: number;
-			avg: number;
+			min: number | null;
+			max: number | null;
+			avg: number | null;
 			total: number;
 			loss: number;
 			rcv: number;
@@ -215,9 +215,29 @@ export class GlobalPingService implements IGlobalPingService {
 				results.push({ location, status: false, statusCode: NETWORK_ERROR, timings });
 			} else if (typeof result.statusCode === "number" && result.statusCode >= 100) {
 				results.push({ location, status: isStatusUp(result.statusCode, customUpCodes), statusCode: result.statusCode, timings });
-			} else if (typeof result.stats?.loss === "number" && result.stats.total > 0) {
-				const up = result.stats.loss === 0;
-				results.push({ location, status: up, statusCode: up ? 200 : NETWORK_ERROR, timings: { ...timings, total: result.stats.avg ?? 0 } });
+			} else if (result.stats) {
+				const { total, rcv, loss, avg } = result.stats;
+				if (
+					!Number.isInteger(total) ||
+					total <= 0 ||
+					!Number.isInteger(rcv) ||
+					rcv < 0 ||
+					rcv > total ||
+					typeof loss !== "number" ||
+					!Number.isFinite(loss) ||
+					loss < 0 ||
+					loss > 100
+				)
+					continue;
+				// Partial packet loss is diagnostic evidence, not complete unreachability.
+				const up = rcv > 0;
+				results.push({
+					location,
+					status: up,
+					statusCode: up ? 200 : NETWORK_ERROR,
+					timings: { ...timings, total: avg ?? 0 },
+					packetLoss: { sent: total, received: rcv, lost: total - rcv, percent: loss },
+				});
 			}
 		}
 		return results;
