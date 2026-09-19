@@ -2,7 +2,7 @@
 
 Appbox's fork of [Checkmate by BlueWave Labs](https://github.com/bluewave-labs/Checkmate), used for [status.appbox.co](https://status.appbox.co/).
 
-[Appbox](https://www.appbox.co/) · [Source repository](https://github.com/appboxco/Checkmate) · [Source of the running release](https://status.appbox.co/source/checkmate-appbox-source.tar.gz) · [AGPL-3.0 license](LICENSE)
+[Appbox](https://www.appbox.co/) · [Source repository](https://github.com/appbox-co/Checkmate) · [Source of the running release](https://status.appbox.co/source/checkmate-appbox-source.tar.gz) · [AGPL-3.0 license](LICENSE)
 
 ## Our changes
 
@@ -33,7 +33,7 @@ This repository preserves our development history. Production releases are selec
 To build this fork from a checkout:
 
 ```sh
-git clone https://github.com/appboxco/Checkmate.git
+git clone https://github.com/appbox-co/Checkmate.git
 cd Checkmate
 docker build -f docker/Dockerfile -t appbox-checkmate:local .
 ```

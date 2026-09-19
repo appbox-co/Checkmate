@@ -381,7 +381,7 @@ export const StatusPageSkeleton = ({
 				sx={styles.footer}
 			>
 				<a
-					href="https://github.com/appboxco/Checkmate"
+					href="https://github.com/appbox-co/Checkmate"
 					target="_blank"
 					rel="noopener noreferrer"
 				>
