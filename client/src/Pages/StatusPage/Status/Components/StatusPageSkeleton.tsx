@@ -380,7 +380,11 @@ export const StatusPageSkeleton = ({
 				component="footer"
 				sx={styles.footer}
 			>
-				<a href="/source/checkmate-appbox-source.tar.gz">
+				<a
+					href="https://github.com/appboxco/Checkmate"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
 					{t("pages.statusPages.footer.sourceCode")}
 				</a>
 			</Box>

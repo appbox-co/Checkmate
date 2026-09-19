@@ -1,3 +1,55 @@
+# Appbox Checkmate
+
+Appbox's fork of [Checkmate by BlueWave Labs](https://github.com/bluewave-labs/Checkmate), used for [status.appbox.co](https://status.appbox.co/).
+
+[Appbox](https://www.appbox.co/) · [Source repository](https://github.com/appboxco/Checkmate) · [Source of the running release](https://status.appbox.co/source/checkmate-appbox-source.tar.gz) · [AGPL-3.0 license](LICENSE)
+
+## Our changes
+
+### Monitoring and notifications
+
+- **Recurring reminders:** choose a repeat interval in each monitor's notification settings, or disable reminders. The schedule survives restarts and respects pauses and maintenance windows. [Details](docs/recurring-reminders.md)
+- **Geographic outage detection:** Globalping HTTP and ping checks from selected continents contribute to the monitor's overall status. Confirmed failures in any region can open an incident; outage, reminder and recovery notifications identify the affected locations. [Details](docs/geographic-outages.md)
+- **Transient-failure filtering:** new regional failures receive an immediate retry and need a separate failed check started at least 60 seconds after the first failing check before opening an outage. Pending and failed regions get faster follow-up checks. For ping, any reply means reachable; packet-loss counts are retained for diagnosis. [Details](docs/geographic-retries.md)
+- **Pushover emergency priority:** problem alerts and recurring reminders repeat through Pushover until acknowledged or expired. Recovery and test messages use normal priority. [Details](docs/pushover-alerts.md)
+
+### Public status pages
+
+- A status-history row for each configured geographic region.
+- Clickable monitors with individual outage history, recovery times, durations and public failure reasons.
+- Recent and 30/60/90-day history views, limited by the instance's configured data retention.
+- Public uptime based on confirmed incidents, with paused monitors excluded from the overall health summary. [Availability semantics](docs/public-availability.md)
+- Appbox branding with a logo linking to our website, and full-page skeletons while status data loads.
+- Custom-domain deployment with public status routes and private administration. [Deployment notes](docs/public-status-deployment.md)
+
+### Additional work in this repository
+
+Staff updates, pinned announcements and publicly visible maintenance schedules are implemented in this development tree. They are **not included in the current status.appbox.co deployment**. Their controls, API and validation notes are documented in [Public status-page communications](docs/public-status-updates.md).
+
+## Source and deployment
+
+This repository preserves our development history. Production releases are selected and verified separately; the [downloadable source archive](https://status.appbox.co/source/checkmate-appbox-source.tar.gz) contains the source corresponding to the running status page, including its build instructions and release manifest.
+
+To build this fork from a checkout:
+
+```sh
+git clone https://github.com/appboxco/Checkmate.git
+cd Checkmate
+docker build -f docker/Dockerfile -t appbox-checkmate:local .
+```
+
+Use that image in your Docker Compose configuration with MongoDB and the required environment settings described below. The upstream images and one-click installers do not include Appbox's changes. A build from this repository also includes the additional development work described above.
+
+Globalping uses one probe per selected continent. Healthy regions follow the monitor's configured interval; confirmation and recovery checks consume additional provider tests. Appbox currently uses a 15-minute healthy geographic interval and 90-day check retention. These are deployment settings, not forced defaults for other installations.
+
+## License and upstream
+
+This fork retains Checkmate's GNU Affero General Public License v3. See [LICENSE](LICENSE). Credit for the original application belongs to BlueWave Labs and the upstream contributors. The documentation below describes upstream Checkmate; the Appbox-specific behavior is listed above.
+
+---
+
+## Upstream documentation
+
 <p align=center> <a href="https://trendshift.io/repositories/12443" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12443" alt="bluewave-labs%2Fcheckmate | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a></p>
 
 <p align="center">

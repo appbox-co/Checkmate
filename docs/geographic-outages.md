@@ -4,7 +4,7 @@ Enable **Geographic checks** in an HTTP or ping monitor's configuration and sele
 
 ## Outage and recovery
 
-- Any conclusive failed probe in a selected continent marks the monitor **down** on the next normal evaluation. This bypasses the local failure-window threshold. Probe acquisition and the existing buffer/evaluator add latency; the production buffer normally flushes once a minute.
+- A confirmed failure in any selected continent marks the monitor **down** on the next normal evaluation. New failures receive an immediate retry and require a separate failed acquisition started at least 60 seconds after the first failing acquisition. This bypasses the local failure-window threshold after confirmation. See [Geographic confirmation and recovery checks](geographic-retries.md) for timing and retry behavior. Probe acquisition and the existing buffer/evaluator add latency; the production buffer normally flushes once a minute.
 - Local and geographic observations enter the existing serialized per-monitor evaluation job. One combined status drives incidents, notifications, reminders, the dashboard and public status pages.
 - Local checks keep their own failure window. Local success cannot clear an unresolved geographic failure. Geographic success cannot clear a local outage.
 - A successful observation from each previously failing continent clears its geographic failure. Globalping selects a probe within each continent on each run; recovery confirms the continent, not necessarily the identical city or network.
@@ -14,7 +14,7 @@ Enable **Geographic checks** in an HTTP or ping monitor's configuration and sele
 
 ## Globalping behavior
 
-HTTP requests preserve scheme, hostname, port, path, query and GET/HEAD method, and use the monitor's accepted HTTP response codes. Ping results with packet loss count as failures, matching existing geographic check semantics. Target/network/DNS failures classified by Globalping as `target` or `resolver` count as down. `internal`, `offline` and unclassified failures are inconclusive. This classification is experimental and best effort in Globalping's API.
+HTTP requests preserve scheme, hostname, port, path, query and GET/HEAD method, and use the monitor's accepted HTTP response codes. For ping, any received reply establishes reachability. Partial packet loss is recorded diagnostically; a valid completed measurement with zero replies starts the failure-confirmation process. Target/network/DNS failures classified by Globalping as `target` or `resolver` count as down. `internal`, `offline` and unclassified failures are inconclusive. This classification is experimental and best effort in Globalping's API.
 
 One probe is requested per selected continent, using per-location limits. Each probe has a 20-second timeout and the client allows another 10 seconds for API finalization. Body matching, local proxies and local TLS-ignore settings do not apply to public probes; Globalping controls its HTTP/TLS behavior. URLs with embedded username/password credentials are rejected instead of being published to the provider. Measurements and their targets are sent to Globalping, as with the existing feature.
 
