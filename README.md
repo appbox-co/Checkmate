@@ -22,13 +22,17 @@ Appbox's fork of [Checkmate by BlueWave Labs](https://github.com/bluewave-labs/C
 - Appbox branding with a logo linking to our website, and full-page skeletons while status data loads.
 - Custom-domain deployment with public status routes and private administration. [Deployment notes](docs/public-status-deployment.md)
 
-### Additional work in this repository
+### Staff updates and maintenance
 
-Staff updates, pinned announcements and publicly visible maintenance schedules are implemented in this development tree. They are **not included in the current status.appbox.co deployment**. Their controls, API and validation notes are documented in [Public status-page communications](docs/public-status-updates.md).
+- Publish and edit staff updates, with investigating, identified, monitoring and resolved states.
+- Pin announcements above the service list; other updates appear below it.
+- Show planned and ongoing maintenance windows publicly, including their schedule and affected services.
+
+Admins manage these from **Status pages → Manage updates** and the existing **Maintenance** section. See [Public status-page communications](docs/public-status-updates.md) for controls and API details.
 
 ## Source and deployment
 
-This repository preserves our development history. Production releases are selected and verified separately; the [downloadable source archive](https://status.appbox.co/source/checkmate-appbox-source.tar.gz) contains the source corresponding to the running status page, including its build instructions and release manifest.
+The full Appbox fork is deployed to status.appbox.co. The [downloadable source archive](https://status.appbox.co/source/checkmate-appbox-source.tar.gz) contains the source corresponding to the running status page, including its build instructions and release manifest.
 
 To build this fork from a checkout:
 
@@ -38,7 +42,7 @@ cd Checkmate
 docker build -f docker/Dockerfile -t appbox-checkmate:local .
 ```
 
-Use that image in your Docker Compose configuration with MongoDB and the required environment settings described below. The upstream images and one-click installers do not include Appbox's changes. A build from this repository also includes the additional development work described above.
+Use that image in your Docker Compose configuration with MongoDB and the required environment settings described below. The upstream images and one-click installers do not include Appbox's changes.
 
 Globalping uses one probe per selected continent. Healthy regions follow the monitor's configured interval; confirmation and recovery checks consume additional provider tests. Appbox currently uses a 15-minute healthy geographic interval and 90-day check retention. These are deployment settings, not forced defaults for other installations.
 

@@ -38,7 +38,7 @@ Mutation routes require an authenticated admin or super admin and enforce team o
 
 ## Validation
 
-- Full backend regression suite: 96 suites, 1,793 tests passed.
+- Full backend regression suite: 100 suites, 1,872 tests passed.
 - Integration tests use disposable MongoDB and local HTTP routes, covering publication, editing, pin/unpin, deletion, persistence, simultaneous posts, capacity, role/team access, unpublished pages, custom domains, general configuration, and public maintenance filtering.
 - Maintenance unit tests cover one-off windows, inclusive boundaries, daily/weekly recurrence, DST, overlapping occurrences and invalid records.
 - Backend and frontend production builds pass.
@@ -46,4 +46,4 @@ Mutation routes require an authenticated admin or super admin and enforce team o
 - Browser checks use a loopback-only sample instance with monitoring workers disabled and no production data. Publishing, editing, unpinning and the deletion confirmation were verified in the admin UI; all five public themes were checked at 390px width without horizontal overflow.
 - The integration harness forwards DOMPurify to the real Node module loader to avoid Jest 30’s ESM loader incompatibility with Node 23; sanitization behavior is not stubbed.
 
-This source change is separate from the previously deployed recurring-reminder release. Build and deploy a new image to make these controls available on the VPS.
+These controls are included in the full Appbox release deployed to status.appbox.co. Staff updates are managed through the private administration interface; published updates and applicable maintenance schedules appear on the public page.
