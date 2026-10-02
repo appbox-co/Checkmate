@@ -252,6 +252,46 @@ const geoCheck = (time: string, results: { continent: string; status: boolean }[
 		...overrides,
 	});
 describe("public geographic history and outage pages", () => {
+	it("reuses validated location samples across ranges and repository instances, refreshing for new checks and configuration", async () => {
+		await geoCheck("2026-09-18T09:00:00Z", [
+			{ continent: "EU", status: true },
+			{ continent: "AS", status: false },
+		]);
+		await geoCheck("2026-09-18T13:00:00Z", [{ continent: "EU", status: false }]);
+		const ids = [monitor.toString()];
+		const selection = [{ monitorId: monitor.toString(), continents: ["EU"] }];
+		const first = await repo.findGeoHistory(team.toString(), ids, 30, "UTC", now, selection);
+		const spy = jest.spyOn(GeoCheckModel, "find");
+		try {
+			const warm = await new MongoStatusPageHistoryRepository().findGeoHistory(team.toString(), ids, 90, "UTC", now, selection);
+			expect(warm[0].recentChecks).toEqual(first[0].recentChecks);
+			expect(spy).not.toHaveBeenCalled();
+			const changedSelection = [{ monitorId: monitor.toString(), continents: ["AS", "EU"] }];
+			const configured = await repo.findGeoHistory(team.toString(), ids, 60, "UTC", now, changedSelection);
+			expect(configured.map((row) => row.continent)).toEqual(["AS", "EU"]);
+			expect(spy).toHaveBeenCalled();
+			spy.mockClear();
+			const futureNow = new Date("2026-09-18T14:00:00Z");
+			const current = await repo.findGeoHistory(team.toString(), ids, 30, "UTC", futureNow, selection);
+			expect(current[0].recentChecks[0]).toMatchObject({ status: false, createdAt: "2026-09-18T13:00:00.000Z" });
+			expect(spy).toHaveBeenCalled();
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it("refreshes the latest location after same-count, same-date replacement and deletion", async () => {
+		const original = await geoCheck("2026-09-18T09:00:00Z", [{ continent: "EU", status: false }]);
+		const get = () => repo.findGeoHistory(team.toString(), [monitor.toString()], 30, "UTC", now);
+		expect((await get())[0].recentChecks[0].status).toBe(false);
+		await GeoCheckModel.deleteMany({ _id: original._id });
+		await geoCheck("2026-09-18T09:00:00Z", [{ continent: "EU", status: true }], {
+			historyInsertedAt: new Date(original.historyInsertedAt!.getTime() + 1000),
+		});
+		expect((await get())[0].recentChecks[0].status).toBe(true);
+		await GeoCheckModel.deleteMany({});
+		expect(await get()).toEqual([]);
+	});
 	it("returns only bounded, chronological observations for the selected team and monitor", async () => {
 		for (let minute = 0; minute < 55; minute++)
 			await geoCheck("2026-09-18T09:" + String(minute).padStart(2, "0") + ":00Z", [

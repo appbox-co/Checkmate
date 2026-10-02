@@ -42,6 +42,7 @@ export interface IStatusPageService {
 }
 
 export class StatusPageService implements IStatusPageService {
+	private readonly pendingPublicPayloads = new Map<string, Promise<PublicStatusPagePayload>>();
 	constructor(
 		private statusPagesRepository: IStatusPagesRepository,
 		private settingsService: ISettingsService,
@@ -149,7 +150,31 @@ export class StatusPageService implements IStatusPageService {
 		return statusPages.map((sp) => this.normalizeTheme(sp));
 	};
 
-	getPublicStatusPagePayload = async (
+	getPublicStatusPagePayload = (
+		statusPage: StatusPage,
+		requesterTeamId: string | undefined,
+		range: StatusPageRange = "latest",
+		selection: PublicMonitorSelection = {}
+	): Promise<PublicStatusPagePayload> => {
+		if (range === "latest") return this.buildPublicStatusPagePayload(statusPage, requesterTeamId, range, selection);
+		// Share only a calculation already in progress. Completed responses are
+		// removed immediately, so the next request reads current incidents and checks.
+		const key = JSON.stringify([
+			statusPage,
+			requesterTeamId,
+			range,
+			selection.monitorId,
+			selection.monitorId ? (selection.incidentPage ?? 0) : undefined,
+		]);
+		const existing = this.pendingPublicPayloads.get(key);
+		if (existing) return existing;
+		const pending = this.buildPublicStatusPagePayload(statusPage, requesterTeamId, range, selection);
+		this.pendingPublicPayloads.set(key, pending);
+		pending.finally(() => this.pendingPublicPayloads.delete(key)).catch(() => {});
+		return pending;
+	};
+
+	private buildPublicStatusPagePayload = async (
 		statusPage: StatusPage,
 		requesterTeamId: string | undefined,
 		range: StatusPageRange = "latest",

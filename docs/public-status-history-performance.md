@@ -9,3 +9,7 @@ Summaries live in the disposable `statuspagehistorysummaries` collection, with a
 Administrative imports that reuse both old insert timestamps and old observation counts must clear the summary collection. The product does not perform such imports.
 
 Daily aggregates preserve MongoDB's timezone, daylight-saving and rounding behavior. Confirmed monitor downtime and raw geographic failures remain distinct. Day-range responses include one latest sample per location for its current status; the latest view retains fifty samples per location. The frontend uses daily buckets for day-range charts.
+
+The newest geographic location samples used in day-range views share a separately keyed summary in the same disposable collection. Each request validates retained geographic counts, newest observation dates and immutable insertion stamps. New checks, deletions, future observations becoming current and configuration changes refresh these rows. Each range still applies its original observation lookback. The latest view continues to read fifty samples directly. Simultaneous requests with the same changed revision share one location refresh.
+
+Overlapping requests for the same day-range page and monitor selection share the calculation already in progress. Page configuration, range and requester team remain separate. The promise is removed on success or failure; completed responses are not cached by the service, and the next request reads current data.

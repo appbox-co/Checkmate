@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import mongoose, { type Model, type PipelineStage } from "mongoose";
+import { GeoCheckModel } from "@/domain/geo-checks/geo-check.model.js";
+import type { PublicGeoHistory, PublicGeoSelection } from "./status-page-history.repository.mongo.js";
 
 interface Footprint {
 	monitorId: string;
@@ -188,4 +190,47 @@ export const findDailySummary = async <T extends { monitorId: string; date: stri
 		closed = (await pending) as T[];
 	}
 	return [...closed, ...today].sort((a, b) => a.date.localeCompare(b.date) || a.monitorId.localeCompare(b.monitorId));
+};
+
+// Day-range pages need only the newest observation for each configured location.
+// Validate the reusable location rows against raw retained observations, just as
+// completed-day summaries are validated. The fifty-sample latest view stays live.
+export const findLatestLocationSummary = async (
+	teamId: string,
+	monitorIds: string[],
+	now: Date,
+	selection: PublicGeoSelection[] | undefined,
+	load: () => Promise<PublicGeoHistory[]>
+): Promise<PublicGeoHistory[]> => {
+	const key = hash([1, "latestLocations", teamId, monitorIds, selection]);
+	const match = {
+		"metadata.teamId": new mongoose.Types.ObjectId(teamId),
+		"metadata.monitorId": { $in: monitorIds.map((id) => new mongoose.Types.ObjectId(id)) },
+		createdAt: { $gte: new Date(now.getTime() - 91 * 86400000), $lte: now },
+	};
+	const signature = async () => {
+		const rows = await GeoCheckModel.aggregate<{ _id: mongoose.Types.ObjectId; count: number; newest: Date; lastWrite: Date }>([
+			{ $match: match },
+			{ $group: { _id: "$metadata.monitorId", count: { $sum: 1 }, newest: { $max: "$createdAt" }, lastWrite: { $max: "$historyInsertedAt" } } },
+		]);
+		return hash(rows.sort((a, b) => a._id.toString().localeCompare(b._id.toString())));
+	};
+	const [revision, stored] = await Promise.all([signature(), SummaryModel.findById(key).lean()]);
+	if (stored?.signature === revision) return stored.rows as PublicGeoHistory[];
+	const pendingKey = key + ":" + revision;
+	let pending = rebuilding.get(pendingKey);
+	if (!pending) {
+		pending = (async () => {
+			const rows = await load();
+			if ((await signature()) === revision) {
+				await mongoose.connection
+					.db!.collection<SummaryDocument>(SummaryModel.collection.name)
+					.replaceOne({ _id: key }, { signature: revision, rows, footprints: [], cutoff: now, refreshedAt: new Date() }, { upsert: true });
+			}
+			return rows;
+		})();
+		rebuilding.set(pendingKey, pending);
+		pending.finally(() => rebuilding.delete(pendingKey)).catch(() => {});
+	}
+	return (await pending) as PublicGeoHistory[];
 };

@@ -102,6 +102,56 @@ const createService = (themesEnabled = true, clientHost = "http://localhost:5173
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe("StatusPageService", () => {
+	describe("concurrent public history requests", () => {
+		it("shares an in-progress history calculation and reads current data on the next request", async () => {
+			const { service, monitorsRepo, historyRepo } = createService();
+			const page = makeStatusPage({ isPublished: true });
+			const [first, second] = await Promise.all([
+				service.getPublicStatusPagePayload(page, undefined, "30d"),
+				service.getPublicStatusPagePayload(page, undefined, "30d", { incidentPage: 99 }),
+			]);
+			expect(second).toEqual(first);
+			expect(monitorsRepo.findByIds).toHaveBeenCalledTimes(1);
+			expect(historyRepo.findHistory).toHaveBeenCalledTimes(1);
+			monitorsRepo.findByIds.mockResolvedValue([makeMonitor({ status: "down" })]);
+			const next = await service.getPublicStatusPagePayload(page, undefined, "30d");
+			expect(next.monitors[0].status).toBe("down");
+			expect(historyRepo.findHistory).toHaveBeenCalledTimes(2);
+		});
+		it("keeps ranges and changed page configuration separate", async () => {
+			const { service, historyRepo } = createService();
+			const page = makeStatusPage({ isPublished: true });
+			const results = await Promise.all([
+				service.getPublicStatusPagePayload(page, undefined, "30d"),
+				service.getPublicStatusPagePayload(page, undefined, "60d"),
+				service.getPublicStatusPagePayload({ ...page, companyName: "Changed" }, undefined, "30d"),
+			]);
+			expect(historyRepo.findHistory).toHaveBeenCalledTimes(3);
+			expect(results[0].statusPage.companyName).toBe("Test Co");
+			expect(results[2].statusPage.companyName).toBe("Changed");
+		});
+		it("does not share a private preview with an unauthorized requester", async () => {
+			const { service } = createService();
+			const page = makeStatusPage({ isPublished: false });
+			const allowed = service.getPublicStatusPagePayload(page, page.teamId, "90d");
+			await expect(service.getPublicStatusPagePayload(page, undefined, "90d")).rejects.toMatchObject({ status: 403 });
+			await expect(allowed).resolves.toHaveProperty("monitors");
+		});
+		it("removes rejected calculations so the next request can retry", async () => {
+			const { service, historyRepo } = createService();
+			const page = makeStatusPage({ isPublished: true });
+			historyRepo.findHistory.mockRejectedValueOnce(new Error("Temporary history failure"));
+			const results = await Promise.allSettled([
+				service.getPublicStatusPagePayload(page, undefined, "60d"),
+				service.getPublicStatusPagePayload(page, undefined, "60d"),
+			]);
+			expect(results.every((result) => result.status === "rejected")).toBe(true);
+			expect(historyRepo.findHistory).toHaveBeenCalledTimes(1);
+			await expect(service.getPublicStatusPagePayload(page, undefined, "60d")).resolves.toHaveProperty("monitors");
+			expect(historyRepo.findHistory).toHaveBeenCalledTimes(2);
+		});
+	});
+
 	describe("createStatusPage", () => {
 		it("delegates to repository with all parameters when themes enabled", async () => {
 			const { service, repo } = createService(true);

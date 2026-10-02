@@ -1,5 +1,5 @@
 import mongoose, { type PipelineStage } from "mongoose";
-import { findDailySummary, historyWindow } from "./status-page-history-summary.js";
+import { findDailySummary, findLatestLocationSummary, historyWindow } from "./status-page-history-summary.js";
 import { GeoCheckModel, type GeoCheckDocument } from "@/domain/geo-checks/geo-check.model.js";
 import { GeoContinents } from "@/domain/geo-checks/geo-check.type.js";
 import type { PublicLocationSample, PublicOutagePage } from "./status-page.type.js";
@@ -191,19 +191,22 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 		];
 		const [recent, daily] = await Promise.all([
 			// Day-range charts use daily buckets; one sample retains current location status.
-			this.findRecentGeoHistory(teamId, monitorIds, now, selection, days, 1),
+			findLatestLocationSummary(teamId, monitorIds, now, selection, () => this.findRecentGeoHistory(teamId, monitorIds, now, selection, 90, 1)),
 			findDailySummary<DailyCheckBucket & { continent: string }>(GeoCheckModel, teamId, monitorIds, timezone, now, window, dailyPipeline, [
 				{ $set: { day: { $literal: window.cutoff } } },
 				...dailyPipeline.slice(1),
 			]),
 		]);
 		const firstDate = this.firstDate(window.today, days);
-		return recent.map((row) => ({
-			...row,
-			dailyChecks: daily
-				.filter((bucket) => bucket.monitorId === row.monitorId && bucket.continent === row.continent && bucket.date >= firstDate)
-				.map(({ continent: _continent, ...bucket }) => bucket),
-		}));
+		const from = new Date(now.getTime() - (days + 1) * 86400000).toISOString();
+		return recent
+			.filter((row) => row.recentChecks.some((sample) => sample.createdAt >= from))
+			.map((row) => ({
+				...row,
+				dailyChecks: daily
+					.filter((bucket) => bucket.monitorId === row.monitorId && bucket.continent === row.continent && bucket.date >= firstDate)
+					.map(({ continent: _continent, ...bucket }) => bucket),
+			}));
 	}
 	private firstDate(today: string, days: number): string {
 		const first = new Date(today + "T00:00:00Z");
