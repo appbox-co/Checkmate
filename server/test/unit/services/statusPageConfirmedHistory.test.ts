@@ -67,6 +67,14 @@ describe("public status page confirmed history projection", () => {
 		history.findHistory.mockResolvedValue({ intervals: [], buckets: [] });
 		expect((await service.getPublicStatusPagePayload(page, undefined)).monitors[0].uptimePercentage).toBeUndefined();
 	});
+	it("uses exact latest totals and omits empty hardware metadata from uptime samples", async () => {
+		const { service, history, monitors } = createService();
+		history.findHistory.mockResolvedValue({ intervals: [], buckets: [], totals: [{ monitorId: "router", totalChecks: 10, upChecks: 9 }] });
+		monitors.findByIds.mockResolvedValue([{ ...monitor, recentChecks: [{ ...sample, cpu: {}, memory: {}, disk: [], host: {} } as never] }]);
+		const result = await service.getPublicStatusPagePayload(page, undefined);
+		expect(result.monitors[0].uptimePercentage).toBe(0.9);
+		for (const field of ["cpu", "memory", "disk", "host"]) expect(result.monitors[0].recentChecks[0]).not.toHaveProperty(field);
+	});
 
 	it("propagates history lookup failures instead of returning an all-up result", async () => {
 		const { service, history } = createService();
@@ -113,7 +121,7 @@ describe("public monitor details", () => {
 			monitorId: "router",
 			incidentPage: 2,
 		});
-		expect(monitors.findByIds).toHaveBeenCalledWith(["router"], { recentChecks: "latestHardware" });
+		expect(monitors.findByIds).toHaveBeenCalledWith(["router"], { recentChecks: "latestHardware", publicStatus: true });
 		expect(history.findIncidentPage).toHaveBeenCalledWith("team", "router", 2, expect.any(Date));
 		expect(result.outages).toMatchObject({ page: 2, hasMore: true, events: [{ statusCode: 503 }] });
 		expect(result.monitors).toHaveLength(1);

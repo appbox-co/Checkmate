@@ -169,7 +169,7 @@ class MongoMonitorsRepository implements IMonitorsRepository {
 		}
 	};
 
-	findByIds = async (monitorIds: string[], options?: { recentChecks?: "all" | "latestHardware" | "none" }): Promise<Monitor[]> => {
+	findByIds = async (monitorIds: string[], options?: { recentChecks?: RecentChecksMode; publicStatus?: boolean }): Promise<Monitor[]> => {
 		if (!monitorIds.length) {
 			return [];
 		}
@@ -179,7 +179,54 @@ class MongoMonitorsRepository implements IMonitorsRepository {
 		const pipeline: PipelineStage[] = [
 			{ $match: { _id: { $in: objectIds } } },
 			...this.recentChecksStages(options?.recentChecks),
-			...this.uptimeStatsLookupStages,
+			...(options?.publicStatus
+				? [
+						{
+							$project: {
+								teamId: 1,
+								userId: 1,
+								name: 1,
+								type: 1,
+								status: 1,
+								interval: 1,
+								url: 1,
+								port: 1,
+								method: 1,
+								customUpCodes: 1,
+								geoCheckEnabled: 1,
+								geoCheckLocations: 1,
+								geoCheckState: 1,
+								geoCheckInterval: 1,
+								createdAt: 1,
+								updatedAt: 1,
+								recentChecks: {
+									$map: {
+										input: { $ifNull: ["$recentChecks", []] },
+										as: "check",
+										in: {
+											$cond: [
+												{ $eq: ["$type", "hardware"] },
+												"$$check",
+												{
+													id: "$$check.id",
+													status: "$$check.status",
+													responseTime: "$$check.responseTime",
+													createdAt: "$$check.createdAt",
+													accessibility: "$$check.accessibility",
+													bestPractices: "$$check.bestPractices",
+													seo: "$$check.seo",
+													performance: "$$check.performance",
+													audits: "$$check.audits",
+													containerSummary: "$$check.containerSummary",
+												},
+											],
+										},
+									},
+								},
+							},
+						},
+					]
+				: this.uptimeStatsLookupStages),
 		];
 		const documents = await MonitorModel.aggregate(pipeline);
 		return documents.map((doc) => this.toEntity(doc));

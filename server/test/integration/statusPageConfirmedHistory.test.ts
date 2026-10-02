@@ -95,7 +95,9 @@ describe("public confirmed availability history", () => {
 		await check("2026-01-01T09:00:00Z", true);
 		await check("2026-09-19T09:00:00Z", false);
 		expect((await history()).buckets).toEqual([]);
-		expect((await repo.findHistory(team.toString(), [monitor.toString()], undefined, "UTC", now)).buckets).toHaveLength(1);
+		expect((await repo.findHistory(team.toString(), [monitor.toString()], undefined, "UTC", now)).totals).toEqual([
+			{ monitorId: monitor.toString(), totalChecks: 1, upChecks: 1 },
+		]);
 		expect(await repo.findHistory(team.toString(), [], 30, "UTC", now)).toEqual({ intervals: [], buckets: [] });
 	});
 
@@ -108,6 +110,33 @@ describe("public confirmed availability history", () => {
 		expect(result.buckets).toEqual([
 			{ monitorId: monitor.toString(), date: "2026-10-25", totalChecks: 2, upChecks: 1, downChecks: 1, avgResponseTime: 20 },
 		]);
+	});
+	it("computes exact latest totals with overlapping and ongoing incidents, future samples and team isolation", async () => {
+		const latestHistory = () => repo.findHistory(team.toString(), [monitor.toString()], undefined, "UTC", now);
+		for (let minute = 0; minute < 8; minute++) await check("2026-09-18T09:0" + minute + ":00Z", minute !== 1);
+		await incident("2026-09-18T09:02:00Z", "2026-09-18T09:04:00Z");
+		await incident("2026-09-18T09:03:00Z", "2026-09-18T09:05:00Z");
+		await incident("2026-09-18T09:06:00Z", null);
+		await check("2026-09-19T09:00:00Z", false);
+		await check("2026-09-18T09:01:00Z", false, { metadata: { teamId: otherTeam, monitorId: monitor, type: "ping" } });
+		await incident("2026-01-01T00:00:00Z", null, { teamId: otherTeam });
+		const latest = await latestHistory();
+		expect(latest.buckets).toEqual([]);
+		expect(latest.totals).toEqual([{ monitorId: monitor.toString(), totalChecks: 8, upChecks: 3 }]);
+		const daily = await history(90);
+		expect(daily.buckets[0]).toMatchObject({ totalChecks: 8, upChecks: 3 });
+		await IncidentModel.deleteMany({});
+		expect((await latestHistory()).totals?.[0].upChecks).toBe(8);
+		await CheckModel.deleteMany({});
+		expect((await latestHistory()).totals).toEqual([]);
+	});
+	it("filters batched metadata totals to the requested monitors and team", async () => {
+		const emptyMonitor = new mongoose.Types.ObjectId();
+		await check("2026-09-18T09:00:00Z", false);
+		await check("2026-09-18T09:00:00Z", true, { metadata: { teamId: team, monitorId: otherMonitor, type: "ping" } });
+		await check("2026-09-18T09:00:00Z", true, { metadata: { teamId: otherTeam, monitorId: monitor, type: "ping" } });
+		const result = await repo.findHistory(team.toString(), [monitor.toString(), emptyMonitor.toString()], undefined, "UTC", now);
+		expect(result.totals).toEqual([{ monitorId: monitor.toString(), totalChecks: 1, upChecks: 1 }]);
 	});
 });
 
@@ -151,6 +180,34 @@ describe("public geographic history and outage pages", () => {
 		expect(JSON.stringify(result)).not.toContain("teamId");
 		const latest = await repo.findGeoHistory(team.toString(), [monitor.toString()], undefined, "UTC", now);
 		expect(latest.every(({ dailyChecks }) => dailyChecks.length === 0)).toBe(true);
+		for (const row of latest) expect(row.recentChecks).toEqual(result.find((item) => item.continent === row.continent)?.recentChecks);
+	});
+	it("keeps fifty samples for sparse locations after recovery-only sweeps", async () => {
+		for (let minute = 0; minute < 55; minute++)
+			await geoCheck("2026-09-18T08:" + String(minute).padStart(2, "0") + ":00Z", [
+				{ continent: "EU", status: true },
+				{ continent: "AS", status: true },
+			]);
+		for (let minute = 0; minute < 55; minute++)
+			await geoCheck("2026-09-18T09:" + String(minute).padStart(2, "0") + ":00Z", [{ continent: "EU", status: false }]);
+		const selection = [{ monitorId: monitor.toString(), continents: ["EU", "AS", "OC"] }];
+		const latest = await repo.findGeoHistory(team.toString(), [monitor.toString()], undefined, "UTC", now, selection);
+		const daily = await repo.findGeoHistory(team.toString(), [monitor.toString()], 30, "UTC", now);
+		expect(latest.map((row) => row.continent)).toEqual(["EU", "AS"]);
+		for (const row of latest) {
+			expect(row.recentChecks).toHaveLength(50);
+			expect(row.recentChecks).toEqual(daily.find((item) => item.continent === row.continent)?.recentChecks);
+		}
+	});
+	it("preserves the timestamp/id tie-break at the fifty-sample cutoff", async () => {
+		for (let i = 0; i < 60; i++)
+			await geoCheck("2026-09-18T09:00:00Z", [{ continent: "EU", status: true }], {
+				results: [{ location: { continent: "EU", city: String(i), country: "GB" }, status: true, statusCode: 200, timings: { total: i } }],
+			});
+		const latest = await repo.findGeoHistory(team.toString(), [monitor.toString()], undefined, "UTC", now);
+		const daily = await repo.findGeoHistory(team.toString(), [monitor.toString()], 30, "UTC", now);
+		expect(latest[0].recentChecks).toHaveLength(50);
+		expect(latest[0].recentChecks).toEqual(daily[0].recentChecks);
 	});
 	it("keeps missing regions/days empty and uses local calendar days across DST", async () => {
 		expect(await repo.findGeoHistory(team.toString(), [], 30, "UTC", now)).toEqual([]);

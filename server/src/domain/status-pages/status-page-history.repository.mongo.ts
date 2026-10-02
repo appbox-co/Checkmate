@@ -1,5 +1,6 @@
 import mongoose, { type PipelineStage } from "mongoose";
-import { GeoCheckModel } from "@/domain/geo-checks/geo-check.model.js";
+import { GeoCheckModel, type GeoCheckDocument } from "@/domain/geo-checks/geo-check.model.js";
+import { GeoContinents } from "@/domain/geo-checks/geo-check.type.js";
 import type { PublicLocationSample, PublicOutagePage } from "./status-page.type.js";
 
 export interface PublicGeoHistory {
@@ -21,9 +22,21 @@ export interface PublicIncidentInterval {
 export interface PublicStatusHistory {
 	intervals: PublicIncidentInterval[];
 	buckets: DailyCheckBucket[];
+	totals?: { monitorId: string; totalChecks: number; upChecks: number }[];
+}
+export interface PublicGeoSelection {
+	monitorId: string;
+	continents: string[];
 }
 export interface IStatusPageHistoryRepository {
-	findGeoHistory(teamId: string, monitorIds: string[], days: number | undefined, timezone: string, now: Date): Promise<PublicGeoHistory[]>;
+	findGeoHistory(
+		teamId: string,
+		monitorIds: string[],
+		days: number | undefined,
+		timezone: string,
+		now: Date,
+		selection?: PublicGeoSelection[]
+	): Promise<PublicGeoHistory[]>;
 	findIncidentPage(teamId: string, monitorId: string, page: number, now: Date): Promise<PublicOutagePage>;
 	findHistory(teamId: string, monitorIds: string[], days: number | undefined, timezone: string, now: Date): Promise<PublicStatusHistory>;
 }
@@ -62,8 +75,84 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 		};
 	}
 
-	async findGeoHistory(teamId: string, monitorIds: string[], days: number | undefined, timezone: string, now: Date): Promise<PublicGeoHistory[]> {
+	// One indexed read normally supplies all locations. Recovery-only sweeps can
+	// leave gaps, so fetch any sparse location separately rather than dropping it.
+	private async findRecentGeoHistory(teamId: string, monitorIds: string[], now: Date, selection?: PublicGeoSelection[]): Promise<PublicGeoHistory[]> {
+		const teamObjectId = new mongoose.Types.ObjectId(teamId);
+		const from = new Date(now.getTime() - 91 * 86400000);
+		type RecentDocument = Pick<GeoCheckDocument, "_id" | "createdAt" | "results">;
+		const readRecent = async (match: mongoose.FilterQuery<GeoCheckDocument>): Promise<RecentDocument[]> => {
+			const projection = {
+				createdAt: 1,
+				"results.location.continent": 1,
+				"results.location.city": 1,
+				"results.location.country": 1,
+				"results.status": 1,
+				"results.timings.total": 1,
+			};
+			let docs = await GeoCheckModel.find(match).select(projection).sort({ createdAt: -1 }).limit(51).lean();
+			// Preserve the previous _id tie-break without a blocking sort of every
+			// retained measurement. Only a tie at the cutoff needs an extra read.
+			const cutoff = docs[49],
+				next = docs[50];
+			if (cutoff && next && cutoff.createdAt.getTime() === next.createdAt.getTime()) {
+				const boundary = cutoff.createdAt;
+				const tied = await GeoCheckModel.find({ ...match, createdAt: boundary })
+					.select(projection)
+					.lean();
+				docs = [...docs.filter((doc) => doc.createdAt > boundary), ...tied];
+			} else {
+				docs = docs.slice(0, 50);
+			}
+			return docs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b._id.toString().localeCompare(a._id.toString()));
+		};
+		const samples = (docs: RecentDocument[], continent: string): PublicLocationSample[] =>
+			docs
+				.flatMap((doc) =>
+					doc.results
+						.filter((result) => result.location.continent === continent)
+						.map((result) => ({
+							createdAt: doc.createdAt.toISOString(),
+							status: result.status,
+							responseTime: result.status ? result.timings.total : undefined,
+							city: result.location.city,
+							country: result.location.country,
+						}))
+				)
+				.slice(0, 50)
+				.reverse();
+		const rows = await Promise.all(
+			monitorIds.map(async (monitorId) => {
+				const match = {
+					"metadata.teamId": teamObjectId,
+					"metadata.monitorId": new mongoose.Types.ObjectId(monitorId),
+					createdAt: { $gte: from, $lte: now },
+				};
+				const docs = await readRecent(match);
+				const continents = [...new Set(selection?.find((item) => item.monitorId === monitorId)?.continents ?? GeoContinents)];
+				return Promise.all(
+					continents.map(async (continent) => {
+						let recentChecks = samples(docs, continent);
+						if (docs.length >= 50 && recentChecks.length < 50)
+							recentChecks = samples(await readRecent({ ...match, "results.location.continent": continent }), continent);
+						return { monitorId, continent, recentChecks, dailyChecks: [] };
+					})
+				);
+			})
+		);
+		return rows.flat().filter((row) => row.recentChecks.length > 0);
+	}
+
+	async findGeoHistory(
+		teamId: string,
+		monitorIds: string[],
+		days: number | undefined,
+		timezone: string,
+		now: Date,
+		selection?: PublicGeoSelection[]
+	): Promise<PublicGeoHistory[]> {
 		if (!monitorIds.length) return [];
+		if (days === undefined) return this.findRecentGeoHistory(teamId, monitorIds, now, selection);
 		const from = new Date(now.getTime() - ((days ?? 90) + 1) * 86400000);
 		const recent: PipelineStage.FacetPipelineStage[] = [
 			{
@@ -167,6 +256,45 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 				end: incident.status ? null : incident.endTime,
 			}))
 			.filter((interval) => interval.end === null || interval.end > interval.start);
+		if (days === undefined) {
+			// MongoDB can count time-series buckets without unpacking every sample.
+			// The latest view needs exact totals, not calendar-day response averages.
+			const match = { "metadata.teamId": teamObjectId, "metadata.monitorId": { $in: objectIds }, createdAt: { $lte: now } };
+			// Multi-monitor totals can group bucket metadata directly. Filter the
+			// small result set afterwards; retain the selective index for details.
+			const countMatch = monitorIds.length === 1 ? match : { "metadata.teamId": teamObjectId, createdAt: { $lte: now } };
+			const group = { _id: "$metadata.monitorId", count: { $sum: 1 } };
+			const [counts, downCounts] = await Promise.all([
+				CheckModel.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([{ $match: countMatch }, { $group: group }]),
+				intervals.length
+					? CheckModel.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
+							{
+								$match: {
+									...match,
+									$or: intervals.map((interval) => ({
+										"metadata.monitorId": new mongoose.Types.ObjectId(interval.monitorId),
+										createdAt: { $gte: interval.start, ...(interval.end ? { $lt: interval.end } : {}), $lte: now },
+									})),
+								},
+							},
+							{ $group: group },
+						])
+					: [],
+			]);
+			const downByMonitor = new Map(downCounts.map((row) => [row._id.toString(), row.count]));
+			const selected = new Set(monitorIds);
+			return {
+				intervals,
+				buckets: [],
+				totals: counts
+					.filter((row) => selected.has(row._id.toString()))
+					.map((row) => ({
+						monitorId: row._id.toString(),
+						totalChecks: row.count,
+						upChecks: row.count - (downByMonitor.get(row._id.toString()) ?? 0),
+					})),
+			};
+		}
 		// Load the small incident set once, rather than joining it for every check.
 		const confirmedDown = intervals.length
 			? {

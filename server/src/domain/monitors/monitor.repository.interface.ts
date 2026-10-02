@@ -31,7 +31,7 @@ export interface IMonitorsRepository {
 	findAllForScheduling(): Promise<MonitorScheduleFields[]>;
 	findByTeamId(teamId: string, config: TeamQueryConfig, options?: { includeRecentChecks?: boolean }): Promise<Monitor[]>;
 	findByTeamIdWithStats(teamId: string, config: TeamQueryConfig): Promise<Monitor[]>;
-	findByIds(monitorIds: string[], options?: { recentChecks?: RecentChecksMode }): Promise<Monitor[]>;
+	findByIds(monitorIds: string[], options?: { recentChecks?: RecentChecksMode; publicStatus?: boolean }): Promise<Monitor[]>;
 
 	// Reserve a due reminder before asynchronous delivery; null means it is no longer eligible.
 	claimNotificationReminder(monitorId: string, teamId: string, interval: number, now: number): Promise<Monitor | null>;

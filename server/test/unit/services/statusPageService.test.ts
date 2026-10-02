@@ -382,7 +382,7 @@ describe("StatusPageService", () => {
 					expect(payload.monitors[0]).not.toHaveProperty("dailyChecks");
 				}
 				expect(checksRepo.getDailyStatusBuckets).not.toHaveBeenCalled();
-				expect(monitorsRepo.findByIds).toHaveBeenCalledWith(["mon-1"], { recentChecks: "all" });
+				expect(monitorsRepo.findByIds).toHaveBeenCalledWith(["mon-1"], { recentChecks: "all", publicStatus: true });
 			});
 
 			it("attaches dailyChecks, passes the repo-trimmed recentChecks through, and echoes range metadata for a day range", async () => {
@@ -399,7 +399,7 @@ describe("StatusPageService", () => {
 				const payload = await service.getPublicStatusPagePayload(page, undefined, "30d");
 
 				expect(historyRepo.findHistory).toHaveBeenCalledWith("team-1", ["mon-1", "mon-2"], 30, "America/Toronto", expect.any(Date));
-				expect(monitorsRepo.findByIds).toHaveBeenCalledWith(["mon-1", "mon-2"], { recentChecks: "latestHardware" });
+				expect(monitorsRepo.findByIds).toHaveBeenCalledWith(["mon-1", "mon-2"], { recentChecks: "latestHardware", publicStatus: true });
 				expect(payload).toMatchObject({ range: "30d", bucketTimezone: "America/Toronto", checkTTLDays: 30 });
 				expect(payload.monitors[0].recentChecks).toEqual([hardwareSnapshot]);
 				expect(payload.monitors[0].dailyChecks).toEqual([bucket]);

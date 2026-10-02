@@ -92,7 +92,7 @@ export class StatusPageService implements IStatusPageService {
 		this.settingsService.areStatusPageThemesEnabled() ? data : this.withoutThemeFields(data);
 
 	private toPublicMonitor = (monitor: Monitor, showURL: boolean, history: PublicStatusHistory) => {
-		const buckets = history.buckets.filter((bucket) => bucket.monitorId === monitor.id);
+		const buckets = (history.totals ?? history.buckets).filter((bucket) => bucket.monitorId === monitor.id);
 		const totalChecks = buckets.reduce((total, bucket) => total + bucket.totalChecks, 0);
 		const upChecks = buckets.reduce((total, bucket) => total + bucket.upChecks, 0);
 		const base = {
@@ -103,9 +103,10 @@ export class StatusPageService implements IStatusPageService {
 			interval: monitor.interval,
 			uptimePercentage: totalChecks ? upChecks / totalChecks : undefined,
 			recentChecks: monitor.recentChecks.map((check) => {
-				const { message: _message, statusCode: _statusCode, ...sample } = check;
+				const { message: _message, statusCode: _statusCode, cpu, memory, disk, host, ...sample } = check;
 				return {
 					...sample,
+					...(monitor.type === "hardware" ? { cpu, memory, disk, host } : {}),
 					status: !isConfirmedDown(history.intervals, monitor.id, check.createdAt),
 					responseTime: check.status ? check.responseTime : undefined,
 				};
@@ -168,28 +169,25 @@ export class StatusPageService implements IStatusPageService {
 			updates: (statusPage.updates ?? []).map(({ author: _author, ...update }) => update),
 		};
 		const selectedIds = selection.monitorId ? [selection.monitorId] : statusPage.monitors;
-		const dbSettings = await this.settingsService.getDBSettings();
+		const [dbSettings, monitors] = await Promise.all([
+			this.settingsService.getDBSettings(),
+			this.monitorsRepository.findByIds(selectedIds, { recentChecks: range === "latest" ? "all" : "latestHardware", publicStatus: true }),
+		]);
 		const showURL = dbSettings.showURL;
-		const monitors = await this.monitorsRepository.findByIds(selectedIds, { recentChecks: range === "latest" ? "all" : "latestHardware" });
 		const pageMonitors = monitors.filter((monitor) => monitor.teamId === statusPage.teamId && selectedIds.includes(monitor.id));
 		if (selection.monitorId && pageMonitors.length !== 1) {
 			throw new AppError({ message: "Monitor not found on this status page", status: 404 });
 		}
-		const windows = await this.maintenanceWindowsRepository.findByMonitorIds(
+		const windowsPromise = this.maintenanceWindowsRepository.findByMonitorIds(
 			pageMonitors.map(({ id }) => id),
 			statusPage.teamId
 		);
 		const now = new Date();
-		const maintenanceWindows = windows
-			.filter((window) => window.teamId === statusPage.teamId)
-			.map((window) => publicMaintenanceWindow(window, pageMonitors, now))
-			.filter((window) => window !== null)
-			.sort((a, b) => a.start.localeCompare(b.start));
 		const order = new Map(statusPage.monitors.map((id, i) => [id, i]));
 		const sorted = [...pageMonitors].sort((a, b) => (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER));
 
 		const bucketTimezone = statusPage.timezone ?? "Etc/UTC";
-		const history = await this.historyRepository.findHistory(
+		const historyPromise = this.historyRepository.findHistory(
 			statusPage.teamId,
 			sorted.map(({ id }) => id),
 			range === "latest" ? undefined : STATUS_PAGE_RANGE_DAYS[range],
@@ -198,20 +196,30 @@ export class StatusPageService implements IStatusPageService {
 		);
 
 		const geoMonitors = sorted.filter((monitor) => monitor.geoCheckEnabled && supportsGeoCheck(monitor.type));
-		const geoHistory = geoMonitors.length
-			? await this.historyRepository.findGeoHistory(
+		const geoHistoryPromise = geoMonitors.length
+			? this.historyRepository.findGeoHistory(
 					statusPage.teamId,
 					geoMonitors.map(({ id }) => id),
 					range === "latest" ? undefined : STATUS_PAGE_RANGE_DAYS[range],
 					bucketTimezone,
-					now
+					now,
+					geoMonitors.map((monitor) => ({ monitorId: monitor.id, continents: monitor.geoCheckLocations ?? [] }))
 				)
 			: [];
-		const detail = selection.monitorId
-			? {
-					outages: await this.historyRepository.findIncidentPage(statusPage.teamId, selection.monitorId, selection.incidentPage ?? 0, now),
-				}
-			: {};
+		const [windows, history, geoHistory, outages] = await Promise.all([
+			windowsPromise,
+			historyPromise,
+			geoHistoryPromise,
+			selection.monitorId
+				? this.historyRepository.findIncidentPage(statusPage.teamId, selection.monitorId, selection.incidentPage ?? 0, now)
+				: undefined,
+		]);
+		const maintenanceWindows = windows
+			.filter((window) => window.teamId === statusPage.teamId)
+			.map((window) => publicMaintenanceWindow(window, pageMonitors, now))
+			.filter((window) => window !== null)
+			.sort((a, b) => a.start.localeCompare(b.start));
+		const detail = outages ? { outages } : {};
 		const toPublic = (monitor: Monitor) => ({
 			...this.toPublicMonitor(monitor, showURL, history),
 			locations: publicStatusLocations(monitor, geoHistory, range !== "latest", now),

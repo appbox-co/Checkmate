@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { MonitorModel } from "../../src/domain/monitors/monitor.model.ts";
 import MongoMonitorsRepository from "../../src/domain/monitors/monitor.repository.mongo.ts";
+import { geoCheckConfiguration, getGeoCheckState } from "../../src/domain/geo-checks/geo-check.status.ts";
 
 let mongod: MongoMemoryServer;
 
@@ -121,6 +122,41 @@ describe("MongoMonitorsRepository", () => {
 
 			expect(monitors).toHaveLength(1);
 			expect(monitors[0].recentChecks).toEqual([]);
+		});
+		it("projects public samples without losing hardware gauges or geographic configuration", async () => {
+			const repo = new MongoMonitorsRepository(),
+				teamId = new mongoose.Types.ObjectId();
+			const hw = await seedMonitorWithChecks(teamId, "hardware", "hardware", ["hw-check"]);
+			const web = await seedMonitorWithChecks(teamId, "web", "http", ["web-check"]);
+			const cpu = { physical_core: 2, logical_core: 4, frequency: 2000, temperature: [35], usage_percent: 0.25 };
+			await MonitorModel.updateOne({ _id: hw._id }, { $set: { "recentChecks.0.cpu": cpu } });
+			await MonitorModel.updateOne(
+				{ _id: web._id },
+				{
+					$set: {
+						method: "POST",
+						customUpCodes: [200, 201],
+						secret: "private-secret",
+						geoCheckEnabled: true,
+						geoCheckLocations: ["EU"],
+						"recentChecks.0.cpu": cpu,
+					},
+				}
+			);
+			const [originalWeb] = await repo.findByIds([web._id.toString()]);
+			const state = { configuration: geoCheckConfiguration(originalWeb), checkedAt: "2026-09-18T09:00:00Z", failures: [], outageLocations: [] };
+			await MonitorModel.updateOne({ _id: web._id }, { $set: { geoCheckState: state } });
+			const ids = [hw._id.toString(), web._id.toString()];
+			const original = await repo.findByIds(ids),
+				projected = await repo.findByIds(ids, { publicStatus: true });
+			expect(projected.find((item) => item.name === "hardware")?.recentChecks).toEqual(
+				original.find((item) => item.name === "hardware")?.recentChecks
+			);
+			const publicWeb = projected.find((item) => item.name === "web")!;
+			expect(getGeoCheckState(publicWeb)).toEqual(state);
+			expect(publicWeb.recentChecks[0].cpu).toBeUndefined();
+			expect(publicWeb.secret).toBeUndefined();
+			expect((await repo.findByIds([web._id.toString()]))[0].secret).toBe("private-secret");
 		});
 	});
 

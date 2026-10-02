@@ -18,6 +18,7 @@ Appbox's fork of [Checkmate by BlueWave Labs](https://github.com/bluewave-labs/C
 - A status-history row for each configured geographic region.
 - Clickable monitors with individual outage history, recovery times, durations and public failure reasons.
 - Recent and 30/60/90-day history views, limited by the instance's configured data retention.
+- Fast current-status reads use exact retained-check counts and indexed recent geographic samples, with independent queries running in parallel.
 - Public uptime based on confirmed incidents, with paused monitors excluded from the overall health summary. [Availability semantics](docs/public-availability.md)
 - Appbox branding with a logo linking to our website, and full-page skeletons while status data loads.
 - Custom-domain deployment with public status routes and private administration. [Deployment notes](docs/public-status-deployment.md)
