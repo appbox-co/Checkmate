@@ -163,6 +163,10 @@ export class StatusPageService implements IStatusPageService {
 		if (selection.monitorId && !statusPage.monitors.includes(selection.monitorId)) {
 			throw new AppError({ message: "Monitor not found on this status page", status: 404 });
 		}
+		const publicStatusPage = {
+			...statusPage,
+			updates: (statusPage.updates ?? []).map(({ author: _author, ...update }) => update),
+		};
 		const selectedIds = selection.monitorId ? [selection.monitorId] : statusPage.monitors;
 		const dbSettings = await this.settingsService.getDBSettings();
 		const showURL = dbSettings.showURL;
@@ -214,7 +218,7 @@ export class StatusPageService implements IStatusPageService {
 		});
 
 		if (range === "latest") {
-			return { statusPage, maintenanceWindows, ...detail, monitors: sorted.map(toPublic) };
+			return { statusPage: publicStatusPage, maintenanceWindows, ...detail, monitors: sorted.map(toPublic) };
 		}
 
 		const bucketsByMonitor = history.buckets.reduce((grouped, bucket) => {
@@ -228,7 +232,7 @@ export class StatusPageService implements IStatusPageService {
 		}, new Map<string, DailyCheckBucket[]>());
 
 		return {
-			statusPage,
+			statusPage: publicStatusPage,
 			maintenanceWindows,
 			range,
 			bucketTimezone,

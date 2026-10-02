@@ -5,8 +5,8 @@
 Open **Status pages**, select a page, then choose **Manage updates**.
 
 - Admins and super admins can publish, edit, pin, unpin and delete updates for their own team's pages.
-- Each update has a title, plain-text message, status (Announcement, Investigating, Identified, Monitoring or Resolved), original author's display name, and publication/edit timestamps.
-- Pinned messages appear above the service list. Other updates appear below it, newest first, with a button to show older updates.
+- Each public update has a title, plain-text message, status (Announcement, Investigating, Identified, Monitoring or Resolved), and publication/edit timestamps. Author names are retained in private records and authenticated management responses; public responses and cards omit them.
+- Pinned messages appear above the service list under **Announcements**, without a public pin badge. Other updates appear below it under **Updates**, newest first, with a button to show older updates.
 - Updates on published pages are public immediately. Updates on unpublished pages remain available only to the owning team's authenticated preview.
 - Post status is descriptive; it does not change monitor health, resolve monitoring incidents, or send notifications.
 - Messages use escaped text with preserved line breaks. The existing API sanitizer removes HTML tags; Markdown is not interpreted.
@@ -38,7 +38,7 @@ Mutation routes require an authenticated admin or super admin and enforce team o
 
 ## Validation
 
-- Full backend regression suite: 100 suites, 1,872 tests passed.
+- Full backend regression suite: 100 suites, 1,876 tests passed.
 - Integration tests use disposable MongoDB and local HTTP routes, covering publication, editing, pin/unpin, deletion, persistence, simultaneous posts, capacity, role/team access, unpublished pages, custom domains, general configuration, and public maintenance filtering.
 - Maintenance unit tests cover one-off windows, inclusive boundaries, daily/weekly recurrence, DST, overlapping occurrences and invalid records.
 - Backend and frontend production builds pass.

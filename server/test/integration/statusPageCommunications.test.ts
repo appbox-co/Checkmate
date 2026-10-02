@@ -132,7 +132,8 @@ describe("status page communications", () => {
 		expect(update.id).toMatch(/^[0-9a-f-]{36}$/);
 		expect(Number.isFinite(Date.parse(update.createdAt))).toBe(true);
 		const publicPage = await request("/status-page/example?type=uptime");
-		expect(publicPage.body.data.statusPage.updates).toEqual([update]);
+		const { author: _author, ...publicUpdate } = update;
+		expect(publicPage.body.data.statusPage.updates).toEqual([publicUpdate]);
 		expect(JSON.stringify(update)).not.toContain("private@example.com");
 		const edited = await request(
 			`/status-page/${pageId}/updates/${update.id}`,
@@ -154,6 +155,23 @@ describe("status page communications", () => {
 		expect((await request(`/status-page/${pageId}/updates/${update.id}`, "PUT", input, "admin")).body.data.updates[0].pinned).toBe(false);
 		expect((await request(`/status-page/${pageId}/updates/${update.id}`, "DELETE", undefined, "admin")).status).toBe(200);
 		expect((await request("/status-page/example?type=uptime")).body.data.statusPage.updates).toEqual([]);
+	});
+	it.each(["latest", "30d", "60d", "90d"])("omits staff names from public responses for %s while preserving private authorship", async (range) => {
+		await service.addStatusUpdate(pageId, teamId, "Alex Operator", statusUpdateBodyValidation.parse(input));
+		await repo.updateById(pageId, teamId, undefined, { customDomain: "status.example.com" });
+		for (const path of [
+			`/status-page/example?type=uptime&range=${range}`,
+			`/status-page/resolve?domain=status.example.com&type=uptime&range=${range}`,
+		]) {
+			const response = await request(path);
+			expect(response.status).toBe(200);
+			expect(response.body.data.statusPage.updates[0]).not.toHaveProperty("author");
+			expect(JSON.stringify(response.body)).not.toContain("Alex Operator");
+			expect(response.body.data.statusPage.updates[0]).toMatchObject(input);
+		}
+		const privatePages = await request("/status-page/team", "GET", undefined, "admin");
+		expect(privatePages.body.data[0].updates[0].author).toBe("Alex Operator");
+		expect((await repo.findByUrl("example")).updates![0].author).toBe("Alex Operator");
 	});
 	it("requires admin identity and team ownership for every mutation", async () => {
 		const page = await service.addStatusUpdate(pageId, teamId, "Staff", statusUpdateBodyValidation.parse(input));

@@ -232,7 +232,9 @@ export const publicStatusPageMonitorResponseSchema = z.object({
 // domain/status-pages/status-page.type.ts; range, bucketTimezone, and checkTTLDays are present only when range !== "latest".
 export const publicStatusPagePayloadResponseSchema = z.object({
 	outages: publicOutagePageResponseSchema.optional(),
-	statusPage: statusPageResponseSchema,
+	statusPage: statusPageResponseSchema.extend({
+		updates: z.array(statusUpdateResponseSchema.omit({ author: true })).optional(),
+	}),
 	monitors: z.array(publicStatusPageMonitorResponseSchema),
 	maintenanceWindows: z.array(publicMaintenanceResponseSchema),
 	range: z.enum(StatusPageDayRanges).optional(),

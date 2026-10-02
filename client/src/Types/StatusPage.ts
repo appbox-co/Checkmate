@@ -66,7 +66,7 @@ export interface StatusPageUpdateInput {
 }
 export interface StatusPageUpdate extends StatusPageUpdateInput {
 	id: string;
-	author: string;
+	author?: string;
 	createdAt: string;
 	updatedAt: string;
 }

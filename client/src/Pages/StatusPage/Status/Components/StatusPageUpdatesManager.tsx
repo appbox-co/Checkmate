@@ -7,11 +7,12 @@ import {
 	FormControlLabel,
 	MenuItem,
 	Stack,
-	TextField,
 	Typography,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { Button, Dialog } from "@/Components/inputs";
+import { TextInput } from "@/Components/inputs/TextInput";
+import { SelectInput } from "@/Components/inputs/Select";
 import { useDelete, usePost, usePut } from "@/Hooks/UseApi";
 import {
 	STATUS_UPDATE_STATES,
@@ -125,11 +126,14 @@ export const StatusPageUpdatesManager = ({ statusPage, onChange }: Props) => {
 					</Alert>
 					{editing !== null ? (
 						<Stack gap={3}>
-							<TextField
-								label={t("pages.statusPages.communications.title")}
+							<TextInput
+								fieldLabel={t("pages.statusPages.communications.title")}
 								value={draft.title}
 								onChange={(event) => setDraft({ ...draft, title: event.target.value })}
-								inputProps={{ maxLength: 160 }}
+								inputProps={{
+									maxLength: 160,
+									"aria-label": t("pages.statusPages.communications.title"),
+								}}
 								required
 								fullWidth
 								disabled={busy}
@@ -140,11 +144,14 @@ export const StatusPageUpdatesManager = ({ statusPage, onChange }: Props) => {
 										: undefined
 								}
 							/>
-							<TextField
-								label={t("pages.statusPages.communications.message")}
+							<TextInput
+								fieldLabel={t("pages.statusPages.communications.message")}
 								value={draft.body}
 								onChange={(event) => setDraft({ ...draft, body: event.target.value })}
-								inputProps={{ maxLength: 5000 }}
+								inputProps={{
+									maxLength: 5000,
+									"aria-label": t("pages.statusPages.communications.message"),
+								}}
 								multiline
 								minRows={5}
 								fullWidth
@@ -157,9 +164,12 @@ export const StatusPageUpdatesManager = ({ statusPage, onChange }: Props) => {
 										: t("pages.statusPages.communications.plainText")
 								}
 							/>
-							<TextField
-								select
-								label={t("pages.statusPages.communications.updateStatus")}
+							<SelectInput
+								fieldLabel={t("pages.statusPages.communications.updateStatus")}
+								inputProps={{
+									"aria-label": t("pages.statusPages.communications.updateStatus"),
+								}}
+								fullWidth
 								value={draft.status}
 								onChange={(event) =>
 									setDraft({
@@ -177,7 +187,7 @@ export const StatusPageUpdatesManager = ({ statusPage, onChange }: Props) => {
 										{t(`pages.statusPages.communications.status.${status}`)}
 									</MenuItem>
 								))}
-							</TextField>
+							</SelectInput>
 							<FormControlLabel
 								control={
 									<Checkbox
@@ -268,8 +278,12 @@ export const StatusPageUpdatesManager = ({ statusPage, onChange }: Props) => {
 										variant="caption"
 										color={theme.palette.text.secondary}
 									>
-										{update.author}
-										{" · "}
+										{update.author && (
+											<>
+												{update.author}
+												{" · "}
+											</>
+										)}
 										{formatStatusDate(
 											update.createdAt,
 											statusPage.timezone,

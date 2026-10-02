@@ -1814,9 +1814,6 @@
 										"id": {
 											"type": "string"
 										},
-										"author": {
-											"type": "string"
-										},
 										"createdAt": {
 											"type": "string"
 										},
@@ -1824,7 +1821,7 @@
 											"type": "string"
 										}
 									},
-									"required": ["title", "body", "status", "pinned", "id", "author", "createdAt", "updatedAt"],
+									"required": ["title", "body", "status", "pinned", "id", "createdAt", "updatedAt"],
 									"additionalProperties": false
 								}
 							},

@@ -126,9 +126,13 @@ export type PublicStatusPageMonitor = Pick<Monitor, "id" | "name" | "type" | "st
 	dailyChecks?: DailyCheckBucket[]; // Only present when range !== "latest"
 };
 
+export type PublicStatusPage = Omit<StatusPage, "updates"> & {
+	updates?: Omit<StatusPageUpdate, "author">[];
+};
+
 export interface PublicStatusPagePayload {
 	outages?: PublicOutagePage;
-	statusPage: StatusPage;
+	statusPage: PublicStatusPage;
 	monitors: PublicStatusPageMonitor[];
 	maintenanceWindows: PublicMaintenanceWindow[];
 	range?: StatusPageDayRange;

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import { Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { PublicMaintenanceWindow, StatusPageUpdate } from "@/Types/StatusPage";
 import { formatStatusDate, sortStatusUpdates } from "@/Utils/statusPageUpdates";
@@ -54,21 +53,6 @@ export const StatusPageCommunications = ({
 				flexWrap="wrap"
 				mb="6px"
 			>
-				{update.pinned && (
-					<Box
-						component="span"
-						display={"inline-flex"}
-						gap={"4px"}
-						fontSize={12}
-						sx={{ alignItems: "center" }}
-					>
-						<Pin
-							size={14}
-							aria-hidden="true"
-						/>
-						{t("pages.statusPages.communications.pinned")}
-					</Box>
-				)}
 				<Box
 					component="span"
 					fontSize={12}
@@ -97,8 +81,6 @@ export const StatusPageCommunications = ({
 				fontSize={12}
 				color={tokens.textMuted}
 			>
-				{t("pages.statusPages.communications.by", { author: update.author })}
-				{" · "}
 				<time dateTime={update.createdAt}>{date(update.createdAt)}</time>
 				{update.updatedAt !== update.createdAt && (
 					<Box component="span">
