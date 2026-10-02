@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { GeoCheckModel } from "../../src/domain/geo-checks/geo-check.model.ts";
@@ -180,6 +180,40 @@ describe("public confirmed availability history", () => {
 		expect((await history(90)).buckets[0].avgResponseTime).toBe(50);
 	});
 
+	it("carries completed days into tomorrow and drops the expired first day without rescanning retained history", async () => {
+		const first = new Date(now);
+		first.setUTCDate(first.getUTCDate() - 89);
+		await check(first.toISOString(), true);
+		await check("2026-09-16T09:00:00Z", true);
+		await check("2026-09-17T09:00:00Z", true);
+		await check("2026-09-18T09:00:00Z", true);
+		await history(90);
+		await check("2026-09-19T09:00:00Z", true);
+		const spy = jest.spyOn(CheckModel, "aggregate");
+		try {
+			const next = await history(90, "UTC", new Date("2026-09-19T12:00:00Z"));
+			expect(next.buckets.map((row) => row.date)).toEqual(["2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19"]);
+			const averageQueries = spy.mock.calls
+				.map(([pipeline]) => pipeline!)
+				.filter((pipeline) => pipeline.some((stage: any) => stage.$group?.avgResponseTime));
+			expect(averageQueries).toHaveLength(2);
+			for (const pipeline of averageQueries)
+				expect((pipeline[0] as any).$match.createdAt.$gte.getTime()).toBeGreaterThanOrEqual(new Date("2026-09-18T00:00:00Z").getTime());
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it("rebuilds changed older days rather than carrying stale data at midnight", async () => {
+		await check("2026-09-16T09:00:00Z", true);
+		await check("2026-09-17T09:00:00Z", true);
+		await check("2026-09-18T09:00:00Z", true);
+		await history(90);
+		await CheckModel.deleteMany({ createdAt: new Date("2026-09-16T09:00:00Z") });
+		const next = await history(90, "UTC", new Date("2026-09-19T12:00:00Z"));
+		expect(next.buckets.map((row) => row.date)).toEqual(["2026-09-17", "2026-09-18"]);
+	});
+
 	it("applies incident edits immediately to completed-day summaries", async () => {
 		await check("2026-09-17T09:00:00Z", true);
 		await check("2026-09-17T09:01:00Z", false);
@@ -302,6 +336,55 @@ describe("public geographic history and outage pages", () => {
 		await GeoCheckModel.deleteMany({});
 		expect(await get(90)).toEqual([]);
 	});
+
+	it.each([
+		[
+			"25-hour",
+			"2026-10-24T20:00:00Z",
+			"2026-10-24T23:30:00Z",
+			"2026-10-25T01:30:00Z",
+			"2026-10-25T12:00:00Z",
+			"2026-10-26T12:00:00Z",
+			"2026-10-24T23:00:00Z",
+			"2026-10-24",
+			"2026-10-25",
+		],
+		[
+			"23-hour",
+			"2026-03-28T20:00:00Z",
+			"2026-03-29T00:30:00Z",
+			"2026-03-29T01:30:00Z",
+			"2026-03-29T12:00:00Z",
+			"2026-03-30T12:00:00Z",
+			"2026-03-29T00:00:00Z",
+			"2026-03-28",
+			"2026-03-29",
+		],
+	])(
+		"carries geographic days across a %s DST day while calculating only the newly closed day",
+		async (_label, before, failed, passed, at, nextAt, cutoff, beforeDate, nextDate) => {
+			await geoCheck(before, [{ continent: "EU", status: true }]);
+			await geoCheck(failed, [{ continent: "EU", status: false }]);
+			await geoCheck(passed, [{ continent: "EU", status: true }]);
+			await repo.findGeoHistory(team.toString(), [monitor.toString()], 90, "Europe/London", new Date(at));
+			const spy = jest.spyOn(GeoCheckModel, "aggregate");
+			try {
+				const next = await repo.findGeoHistory(team.toString(), [monitor.toString()], 90, "Europe/London", new Date(nextAt));
+				expect(next[0].dailyChecks).toEqual([
+					{ monitorId: monitor.toString(), date: beforeDate, totalChecks: 1, upChecks: 1, downChecks: 0, avgResponseTime: 15 },
+					{ monitorId: monitor.toString(), date: nextDate, totalChecks: 2, upChecks: 1, downChecks: 1, avgResponseTime: 15 },
+				]);
+				const averageQueries = spy.mock.calls
+					.map(([pipeline]) => pipeline!)
+					.filter((pipeline) => pipeline.some((stage: any) => stage.$group?.avgResponseTime));
+				expect(averageQueries).toHaveLength(2);
+				for (const pipeline of averageQueries)
+					expect((pipeline[0] as any).$match.createdAt.$gte.getTime()).toBeGreaterThanOrEqual(new Date(cutoff).getTime());
+			} finally {
+				spy.mockRestore();
+			}
+		}
+	);
 
 	it("pages only confirmed incidents with safe fields, newest first, including ongoing outages", async () => {
 		const start = new Date("2026-09-18T08:00:00Z").getTime();

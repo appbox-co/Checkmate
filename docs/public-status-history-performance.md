@@ -4,7 +4,7 @@ The 30, 60 and 90 day views share persisted summaries of completed calendar days
 
 Each request validates completed-day summaries against the retained check count and latest immutable insertion timestamp for each selected monitor. Normal check deletion, retention expiry and historical insertion invalidate the summary. New observations receive a historyInsertedAt stamp independently of their supplied check date. Older observations remain unchanged. Raw check values are immutable time-series observations; product code only inserts and deletes them. A summary is published only when validation is unchanged across its calculation.
 
-Summaries live in the disposable `statuspagehistorysummaries` collection, with a two-day TTL. Keys include team, selected monitors, timezone, date bounds and calculation version. Missing or invalid summaries are rebuilt synchronously; this initial rebuild can take longer than a normal request. There is no stale-response fallback. Removing this collection only affects performance.
+Summaries live in the disposable `statuspagehistorysummaries` collection, with a two-day TTL. Keys include team, selected monitors, timezone, date bounds and calculation version. Missing or invalid summaries are rebuilt synchronously; this initial rebuild can take longer than a normal request. At midnight, previously completed days are validated and carried forward; only the newly completed day is calculated. There is no stale-response fallback. Removing this collection only affects performance.
 
 Administrative imports that reuse both old insert timestamps and old observation counts must clear the summary collection. The product does not perform such imports.
 
