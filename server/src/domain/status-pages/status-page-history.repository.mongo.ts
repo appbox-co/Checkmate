@@ -1,4 +1,5 @@
 import mongoose, { type PipelineStage } from "mongoose";
+import { findDailySummary, historyWindow } from "./status-page-history-summary.js";
 import { GeoCheckModel, type GeoCheckDocument } from "@/domain/geo-checks/geo-check.model.js";
 import { GeoContinents } from "@/domain/geo-checks/geo-check.type.js";
 import type { PublicLocationSample, PublicOutagePage } from "./status-page.type.js";
@@ -77,9 +78,16 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 
 	// One indexed read normally supplies all locations. Recovery-only sweeps can
 	// leave gaps, so fetch any sparse location separately rather than dropping it.
-	private async findRecentGeoHistory(teamId: string, monitorIds: string[], now: Date, selection?: PublicGeoSelection[]): Promise<PublicGeoHistory[]> {
+	private async findRecentGeoHistory(
+		teamId: string,
+		monitorIds: string[],
+		now: Date,
+		selection?: PublicGeoSelection[],
+		days = 90,
+		sampleLimit = 50
+	): Promise<PublicGeoHistory[]> {
 		const teamObjectId = new mongoose.Types.ObjectId(teamId);
-		const from = new Date(now.getTime() - 91 * 86400000);
+		const from = new Date(now.getTime() - (days + 1) * 86400000);
 		type RecentDocument = Pick<GeoCheckDocument, "_id" | "createdAt" | "results">;
 		const readRecent = async (match: mongoose.FilterQuery<GeoCheckDocument>): Promise<RecentDocument[]> => {
 			const projection = {
@@ -90,11 +98,15 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 				"results.status": 1,
 				"results.timings.total": 1,
 			};
-			let docs = await GeoCheckModel.find(match).select(projection).sort({ createdAt: -1 }).limit(51).lean();
+			let docs = await GeoCheckModel.find(match)
+				.select(projection)
+				.sort({ createdAt: -1 })
+				.limit(sampleLimit + 1)
+				.lean();
 			// Preserve the previous _id tie-break without a blocking sort of every
 			// retained measurement. Only a tie at the cutoff needs an extra read.
-			const cutoff = docs[49],
-				next = docs[50];
+			const cutoff = docs[sampleLimit - 1],
+				next = docs[sampleLimit];
 			if (cutoff && next && cutoff.createdAt.getTime() === next.createdAt.getTime()) {
 				const boundary = cutoff.createdAt;
 				const tied = await GeoCheckModel.find({ ...match, createdAt: boundary })
@@ -102,7 +114,7 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 					.lean();
 				docs = [...docs.filter((doc) => doc.createdAt > boundary), ...tied];
 			} else {
-				docs = docs.slice(0, 50);
+				docs = docs.slice(0, sampleLimit);
 			}
 			return docs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b._id.toString().localeCompare(a._id.toString()));
 		};
@@ -119,7 +131,7 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 							country: result.location.country,
 						}))
 				)
-				.slice(0, 50)
+				.slice(0, sampleLimit)
 				.reverse();
 		const rows = await Promise.all(
 			monitorIds.map(async (monitorId) => {
@@ -133,7 +145,7 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 				return Promise.all(
 					continents.map(async (continent) => {
 						let recentChecks = samples(docs, continent);
-						if (docs.length >= 50 && recentChecks.length < 50)
+						if (docs.length >= sampleLimit && recentChecks.length < sampleLimit)
 							recentChecks = samples(await readRecent({ ...match, "results.location.continent": continent }), continent);
 						return { monitorId, continent, recentChecks, dailyChecks: [] };
 					})
@@ -153,41 +165,17 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 	): Promise<PublicGeoHistory[]> {
 		if (!monitorIds.length) return [];
 		if (days === undefined) return this.findRecentGeoHistory(teamId, monitorIds, now, selection);
-		const from = new Date(now.getTime() - ((days ?? 90) + 1) * 86400000);
-		const recent: PipelineStage.FacetPipelineStage[] = [
-			{
-				$group: {
-					_id: { monitorId: "$metadata.monitorId", continent: "$results.location.continent" },
-					checks: {
-						$topN: {
-							n: 50,
-							sortBy: { createdAt: -1, _id: -1 },
-							output: {
-								createdAt: "$createdAt",
-								status: "$results.status",
-								responseTime: { $cond: ["$results.status", "$results.timings.total", null] },
-								city: "$results.location.city",
-								country: "$results.location.country",
-							},
-						},
-					},
-				},
-			},
-		];
-		const daily: PipelineStage.FacetPipelineStage[] = [
-			{
-				$group: {
-					_id: {
-						monitorId: "$metadata.monitorId",
-						continent: "$results.location.continent",
-						day: { $dateTrunc: { date: "$createdAt", unit: "day", timezone } },
-					},
-					totalChecks: { $sum: 1 },
-					upChecks: { $sum: { $cond: ["$results.status", 1, 0] } },
-					avgResponseTime: { $avg: { $cond: ["$results.status", "$results.timings.total", null] } },
-				},
-			},
-			{ $sort: { "_id.day": 1 } },
+		const window = await historyWindow(timezone, now);
+		const group = {
+			_id: { monitorId: "$metadata.monitorId", continent: "$results.location.continent", day: "$day" },
+			totalChecks: { $sum: 1 },
+			upChecks: { $sum: { $cond: ["$results.status", 1, 0] } },
+			avgResponseTime: { $avg: { $cond: ["$results.status", "$results.timings.total", null] } },
+		};
+		const dailyPipeline: PipelineStage[] = [
+			{ $set: { day: { $dateTrunc: { date: "$createdAt", unit: "day", timezone } } } },
+			{ $unwind: "$results" },
+			{ $group: group },
 			{
 				$project: {
 					_id: 0,
@@ -201,39 +189,26 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 				},
 			},
 		];
-		const [result] = await GeoCheckModel.aggregate<{
-			recent: {
-				_id: { monitorId: mongoose.Types.ObjectId; continent: string };
-				checks: (Omit<PublicLocationSample, "createdAt"> & { createdAt: Date })[];
-			}[];
-			daily?: (DailyCheckBucket & { continent: string })[];
-		}>([
-			{
-				$match: {
-					"metadata.teamId": new mongoose.Types.ObjectId(teamId),
-					"metadata.monitorId": { $in: monitorIds.map((id) => new mongoose.Types.ObjectId(id)) },
-					createdAt: { $gte: from, $lte: now },
-				},
-			},
-			{ $unwind: "$results" },
-			{ $facet: { recent, ...(days === undefined ? {} : { daily }) } },
+		const [recent, daily] = await Promise.all([
+			// Day-range charts use daily buckets; one sample retains current location status.
+			this.findRecentGeoHistory(teamId, monitorIds, now, selection, days, 1),
+			findDailySummary<DailyCheckBucket & { continent: string }>(GeoCheckModel, teamId, monitorIds, timezone, now, window, dailyPipeline, [
+				{ $set: { day: { $literal: window.cutoff } } },
+				...dailyPipeline.slice(1),
+			]),
 		]);
-		const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-		const first = new Date(today + "T00:00:00Z");
-		first.setUTCDate(first.getUTCDate() - (days ?? 90) + 1);
-		const firstDate = first.toISOString().slice(0, 10);
-		return (result?.recent ?? []).map(({ _id, checks }) => ({
-			monitorId: _id.monitorId.toString(),
-			continent: _id.continent,
-			recentChecks: checks.reverse().map((check) => ({
-				...check,
-				createdAt: check.createdAt.toISOString(),
-				responseTime: check.responseTime ?? undefined,
-			})),
-			dailyChecks: (result?.daily ?? [])
-				.filter((bucket) => bucket.monitorId === _id.monitorId.toString() && bucket.continent === _id.continent && bucket.date >= firstDate)
+		const firstDate = this.firstDate(window.today, days);
+		return recent.map((row) => ({
+			...row,
+			dailyChecks: daily
+				.filter((bucket) => bucket.monitorId === row.monitorId && bucket.continent === row.continent && bucket.date >= firstDate)
 				.map(({ continent: _continent, ...bucket }) => bucket),
 		}));
+	}
+	private firstDate(today: string, days: number): string {
+		const first = new Date(today + "T00:00:00Z");
+		first.setUTCDate(first.getUTCDate() - days + 1);
+		return first.toISOString().slice(0, 10);
 	}
 	async findHistory(teamId: string, monitorIds: string[], days: number | undefined, timezone: string, now: Date): Promise<PublicStatusHistory> {
 		if (!monitorIds.length) return { intervals: [], buckets: [] };
@@ -295,52 +270,54 @@ export class MongoStatusPageHistoryRepository implements IStatusPageHistoryRepos
 					})),
 			};
 		}
-		// Load the small incident set once, rather than joining it for every check.
-		const confirmedDown = intervals.length
-			? {
-					$or: intervals.map((interval) => ({
-						$and: [
-							{ $eq: ["$metadata.monitorId", new mongoose.Types.ObjectId(interval.monitorId)] },
-							{ $gte: ["$createdAt", interval.start] },
-							...(interval.end ? [{ $lt: ["$createdAt", interval.end] }] : []),
-						],
-					})),
-				}
-			: { $literal: false };
-		const buckets = await CheckModel.aggregate<DailyCheckBucket>([
-			{
-				$match: {
-					"metadata.teamId": teamObjectId,
-					"metadata.monitorId": { $in: objectIds },
-					createdAt: { ...(from ? { $gte: from } : {}), $lte: now },
-				},
-			},
-			{
-				$group: {
-					_id: { monitorId: "$metadata.monitorId", day: { $dateTrunc: { date: "$createdAt", unit: "day", timezone } } },
-					totalChecks: { $sum: 1 },
-					upChecks: { $sum: { $cond: [confirmedDown, 0, 1] } },
-					avgResponseTime: { $avg: { $cond: ["$status", "$responseTime", null] } },
-				},
-			},
-			{ $sort: { "_id.day": 1 } },
+		const window = await historyWindow(timezone, now);
+		const dayKey = { monitorId: "$metadata.monitorId", day: { $dateTrunc: { date: "$createdAt", unit: "day", timezone } } };
+		const rawGroup = { _id: dayKey, totalChecks: { $sum: 1 }, avgResponseTime: { $avg: { $cond: ["$status", "$responseTime", null] } } };
+		const dailyPipeline: PipelineStage[] = [
+			{ $group: rawGroup },
 			{
 				$project: {
 					_id: 0,
 					monitorId: { $toString: "$_id.monitorId" },
 					date: { $dateToString: { date: "$_id.day", format: "%Y-%m-%d", timezone } },
 					totalChecks: 1,
-					upChecks: 1,
-					downChecks: { $subtract: ["$totalChecks", "$upChecks"] },
 					avgResponseTime: { $round: ["$avgResponseTime", 0] },
 				},
 			},
+		];
+		// Incident confirmation is queried separately, so edits and recoveries are
+		// immediately reflected without rebuilding immutable response statistics.
+		const [rawBuckets, downCounts] = await Promise.all([
+			findDailySummary<Omit<DailyCheckBucket, "upChecks" | "downChecks">>(CheckModel, teamId, monitorIds, timezone, now, window, dailyPipeline, [
+				{ $group: { ...rawGroup, _id: { monitorId: "$metadata.monitorId", day: { $literal: window.cutoff } } } },
+				...dailyPipeline.slice(1),
+			]),
+			intervals.length
+				? CheckModel.aggregate<{ _id: { monitorId: mongoose.Types.ObjectId; day: Date }; count: number }>([
+						{
+							$match: {
+								"metadata.teamId": teamObjectId,
+								"metadata.monitorId": { $in: objectIds },
+								createdAt: { $gte: window.from, $lte: now },
+								$or: intervals.map((interval) => ({
+									"metadata.monitorId": new mongoose.Types.ObjectId(interval.monitorId),
+									createdAt: { $gte: interval.start, ...(interval.end ? { $lt: interval.end } : {}), $lte: now },
+								})),
+							},
+						},
+						{ $group: { _id: dayKey, count: { $sum: 1 } } },
+					])
+				: [],
 		]);
-		if (days === undefined) return { intervals, buckets };
-		const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-		const first = new Date(today + "T00:00:00Z");
-		first.setUTCDate(first.getUTCDate() - days + 1);
-		const firstDate = first.toISOString().slice(0, 10);
-		return { intervals, buckets: buckets.filter((bucket) => bucket.date >= firstDate) };
+		const dateFormat = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" });
+		const downByDay = new Map(downCounts.map((row) => [row._id.monitorId.toString() + ":" + dateFormat.format(row._id.day), row.count]));
+		const firstDate = this.firstDate(window.today, days);
+		const buckets = rawBuckets
+			.filter((bucket) => bucket.date >= firstDate)
+			.map((bucket) => {
+				const downChecks = downByDay.get(bucket.monitorId + ":" + bucket.date) ?? 0;
+				return { ...bucket, upChecks: bucket.totalChecks - downChecks, downChecks };
+			});
+		return { intervals, buckets };
 	}
 }

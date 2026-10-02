@@ -47,6 +47,7 @@ beforeEach(async () => {
 	await CheckModel.deleteMany({});
 	await GeoCheckModel.deleteMany({});
 	await IncidentModel.deleteMany({});
+	await mongoose.model("StatusPageHistorySummary").deleteMany({});
 });
 
 describe("public confirmed availability history", () => {
@@ -138,6 +139,70 @@ describe("public confirmed availability history", () => {
 		const result = await repo.findHistory(team.toString(), [monitor.toString(), emptyMonitor.toString()], undefined, "UTC", now);
 		expect(result.totals).toEqual([{ monitorId: monitor.toString(), totalChecks: 1, upChecks: 1 }]);
 	});
+	it("shares completed days across all ranges and fresh repository instances, while keeping today live", async () => {
+		await check("2026-09-16T09:00:00Z", true, { responseTime: 20 });
+		await check("2026-09-16T09:01:00Z", true, { responseTime: 21 });
+		await check("2026-09-17T09:00:00Z", false);
+		await check("2026-09-18T09:00:00Z", true, { responseTime: 30 });
+		const expected = (await history(30)).buckets;
+		expect(expected[0].avgResponseTime).toBe(20); // MongoDB rounds ties to even.
+		for (const days of [60, 90]) {
+			const fresh = new MongoStatusPageHistoryRepository();
+			expect((await fresh.findHistory(team.toString(), [monitor.toString()], days, "UTC", now)).buckets).toEqual(expected);
+		}
+		expect(await mongoose.model("StatusPageHistorySummary").countDocuments()).toBe(1);
+		await check("2026-09-18T09:01:00Z", true, { responseTime: 40 });
+		expect((await history(90)).buckets.at(-1)).toMatchObject({ totalChecks: 2, avgResponseTime: 35 });
+	});
+
+	it("invalidates summaries after deletions, historical imports and count-preserving replacement inserts", async () => {
+		const old = await check("2026-09-17T09:00:00Z", true, { responseTime: 10 });
+		await check("2026-09-17T09:01:00Z", true, { responseTime: 30 });
+		expect((await history()).buckets[0]).toMatchObject({ totalChecks: 2, avgResponseTime: 20 });
+		await CheckModel.deleteMany({ _id: old._id });
+		await check("2026-09-17T09:00:00Z", true, { responseTime: 50 });
+		expect((await history(60)).buckets[0]).toMatchObject({ totalChecks: 2, avgResponseTime: 40 });
+		await check("2026-09-16T09:00:00Z", true, { responseTime: 70 });
+		expect((await history(90)).buckets).toHaveLength(2);
+		await CheckModel.deleteMany({});
+		expect((await history()).buckets).toEqual([]);
+	});
+
+	it("detects replacements of legacy observations whose insert timestamp is missing", async () => {
+		const legacy = (await check("2026-09-17T09:00:00Z", true, { responseTime: 10 })).toObject();
+		delete legacy.historyInsertedAt;
+		await CheckModel.deleteMany({});
+		await CheckModel.collection.insertOne(legacy);
+		expect((await history()).buckets[0].avgResponseTime).toBe(10);
+		await CheckModel.deleteMany({});
+		const replacement = await check("2026-09-17T09:00:00Z", true, { responseTime: 50 });
+		expect(replacement.historyInsertedAt!.getTime()).toBeGreaterThan(replacement.createdAt.getTime());
+		expect((await history(90)).buckets[0].avgResponseTime).toBe(50);
+	});
+
+	it("applies incident edits immediately to completed-day summaries", async () => {
+		await check("2026-09-17T09:00:00Z", true);
+		await check("2026-09-17T09:01:00Z", false);
+		expect((await history()).buckets[0]).toMatchObject({ upChecks: 2, downChecks: 0 });
+		await incident("2026-09-17T09:01:00Z", "2026-09-17T09:02:00Z");
+		expect((await history(60)).buckets[0]).toMatchObject({ upChecks: 1, downChecks: 1 });
+		await IncidentModel.deleteMany({});
+		expect((await history(90)).buckets[0]).toMatchObject({ upChecks: 2, downChecks: 0 });
+	});
+
+	it("keeps summary windows separate for timezone, team, monitor and calendar-day boundaries", async () => {
+		await check("2026-10-24T23:01:00Z", true);
+		await check("2026-10-25T01:01:00Z", true);
+		await check("2026-10-25T23:01:00Z", false);
+		const at = new Date("2026-10-26T12:00:00Z");
+		const london = (await history(30, "Europe/London", at)).buckets;
+		expect(london).toEqual([{ monitorId: monitor.toString(), date: "2026-10-25", totalChecks: 3, upChecks: 3, downChecks: 0, avgResponseTime: 20 }]);
+		expect((await history(30, "UTC", at)).buckets).toHaveLength(2);
+		expect((await repo.findHistory(otherTeam.toString(), [monitor.toString()], 30, "Europe/London", at)).buckets).toEqual([]);
+		expect((await repo.findHistory(team.toString(), [otherMonitor.toString()], 30, "Europe/London", at)).buckets).toEqual([]);
+		await check("2026-10-26T00:01:00Z", true);
+		expect((await history(1, "Europe/London", at)).buckets[0]).toMatchObject({ date: "2026-10-26", totalChecks: 1 });
+	});
 });
 
 const geoCheck = (time: string, results: { continent: string; status: boolean }[], overrides = {}) =>
@@ -169,8 +234,8 @@ describe("public geographic history and outage pages", () => {
 		const result = await repo.findGeoHistory(team.toString(), [monitor.toString()], 30, "UTC", now);
 		expect(result).toHaveLength(2);
 		const europe = result.find(({ continent }) => continent === "EU")!;
-		expect(europe.recentChecks).toHaveLength(50);
-		expect(europe.recentChecks[0].createdAt).toBe("2026-09-18T09:05:00.000Z");
+		expect(europe.recentChecks).toHaveLength(1);
+		expect(europe.recentChecks[0].createdAt).toBe("2026-09-18T09:54:00.000Z");
 		expect(europe.recentChecks.at(-1)?.createdAt).toBe("2026-09-18T09:54:00.000Z");
 		expect(europe.recentChecks.find(({ status }) => !status)?.responseTime).toBeUndefined();
 		expect(europe.dailyChecks).toEqual([
@@ -180,7 +245,10 @@ describe("public geographic history and outage pages", () => {
 		expect(JSON.stringify(result)).not.toContain("teamId");
 		const latest = await repo.findGeoHistory(team.toString(), [monitor.toString()], undefined, "UTC", now);
 		expect(latest.every(({ dailyChecks }) => dailyChecks.length === 0)).toBe(true);
-		for (const row of latest) expect(row.recentChecks).toEqual(result.find((item) => item.continent === row.continent)?.recentChecks);
+		for (const row of latest) {
+			expect(row.recentChecks).toHaveLength(50);
+			expect(row.recentChecks.slice(-1)).toEqual(result.find((item) => item.continent === row.continent)?.recentChecks);
+		}
 	});
 	it("keeps fifty samples for sparse locations after recovery-only sweeps", async () => {
 		for (let minute = 0; minute < 55; minute++)
@@ -196,7 +264,7 @@ describe("public geographic history and outage pages", () => {
 		expect(latest.map((row) => row.continent)).toEqual(["EU", "AS"]);
 		for (const row of latest) {
 			expect(row.recentChecks).toHaveLength(50);
-			expect(row.recentChecks).toEqual(daily.find((item) => item.continent === row.continent)?.recentChecks);
+			expect(row.recentChecks.slice(-1)).toEqual(daily.find((item) => item.continent === row.continent)?.recentChecks);
 		}
 	});
 	it("preserves the timestamp/id tie-break at the fifty-sample cutoff", async () => {
@@ -207,7 +275,7 @@ describe("public geographic history and outage pages", () => {
 		const latest = await repo.findGeoHistory(team.toString(), [monitor.toString()], undefined, "UTC", now);
 		const daily = await repo.findGeoHistory(team.toString(), [monitor.toString()], 30, "UTC", now);
 		expect(latest[0].recentChecks).toHaveLength(50);
-		expect(latest[0].recentChecks).toEqual(daily[0].recentChecks);
+		expect(latest[0].recentChecks.slice(-1)).toEqual(daily[0].recentChecks);
 	});
 	it("keeps missing regions/days empty and uses local calendar days across DST", async () => {
 		expect(await repo.findGeoHistory(team.toString(), [], 30, "UTC", now)).toEqual([]);
@@ -220,6 +288,21 @@ describe("public geographic history and outage pages", () => {
 			{ monitorId: monitor.toString(), date: "2026-10-25", totalChecks: 2, upChecks: 1, downChecks: 1, avgResponseTime: 15 },
 		]);
 	});
+	it("refreshes completed geographic days after deletion/backfill and keeps range-specific recent samples bounded", async () => {
+		const old = await geoCheck("2026-09-17T09:00:00Z", [{ continent: "EU", status: false }]);
+		await geoCheck("2026-09-17T09:01:00Z", [{ continent: "EU", status: true }]);
+		const get = (days: number) => repo.findGeoHistory(team.toString(), [monitor.toString()], days, "UTC", now);
+		expect((await get(30))[0].dailyChecks[0]).toMatchObject({ totalChecks: 2, upChecks: 1, downChecks: 1 });
+		await GeoCheckModel.deleteMany({ _id: old._id });
+		await geoCheck("2026-09-17T09:02:00Z", [{ continent: "EU", status: true }]);
+		expect((await get(60))[0].dailyChecks[0]).toMatchObject({ totalChecks: 2, upChecks: 2, downChecks: 0 });
+		await geoCheck("2026-08-01T09:00:00Z", [{ continent: "AS", status: true }]);
+		expect((await get(30)).some((row) => row.continent === "AS")).toBe(false);
+		expect((await get(90)).find((row) => row.continent === "AS")?.dailyChecks).toHaveLength(1);
+		await GeoCheckModel.deleteMany({});
+		expect(await get(90)).toEqual([]);
+	});
+
 	it("pages only confirmed incidents with safe fields, newest first, including ongoing outages", async () => {
 		const start = new Date("2026-09-18T08:00:00Z").getTime();
 		for (let i = 0; i < 21; i++)

@@ -39,6 +39,7 @@ type CheckDocumentBase = Omit<Check, "id" | "metadata" | "createdAt" | "updatedA
 
 interface CheckDocument extends CheckDocumentBase {
 	_id: Types.ObjectId;
+	historyInsertedAt?: Date;
 }
 
 const timingPhasesSchema = new Schema<GotTimings["phases"]>(
@@ -262,6 +263,8 @@ const metadataSchema = new Schema<CheckMetadataDocument>(
 
 const CheckSchema = new Schema<CheckDocument>(
 	{
+		// Validation stamp for derived public history; existing observations are unchanged.
+		historyInsertedAt: { type: Date, default: Date.now, immutable: true },
 		metadata: {
 			type: metadataSchema,
 			required: true,

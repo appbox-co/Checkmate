@@ -21,6 +21,7 @@ type GeoCheckDocumentBase = Omit<GeoCheck, "id" | "metadata" | "expiry" | "creat
 
 export interface GeoCheckDocument extends GeoCheckDocumentBase {
 	_id: Types.ObjectId;
+	historyInsertedAt?: Date;
 }
 
 const geoCheckMetadataSchema = new Schema<GeoCheckMetadataDocument>(
@@ -119,6 +120,8 @@ export const geoCheckStateSchema = new Schema<GeoCheckState>(
 
 const GeoCheckSchema = new Schema<GeoCheckDocument>(
 	{
+		// Validation stamp for derived public history; existing observations are unchanged.
+		historyInsertedAt: { type: Date, default: Date.now, immutable: true },
 		metadata: {
 			type: geoCheckMetadataSchema,
 			required: true,
