@@ -1,4 +1,5 @@
-import { type Monitor } from "@/domain/monitors/monitor.type.js";
+import { randomBytes } from "node:crypto";
+import { DefaultPushGracePeriod, PUSH_MONITOR_URL, type Monitor } from "@/domain/monitors/monitor.type.js";
 import type {
 	MonitorType,
 	MonitorsWithChecksByTeamIdResult,
@@ -37,6 +38,22 @@ import { IEncryptionService } from "@/service/encryption/encryptionService.js";
 import { isDockerTlsUrl } from "@/utils/dockerHost.js";
 
 const SERVICE_NAME = "MonitorService";
+
+// 256-bit URL-safe token; it is the only credential for /api/v1/push/<token>.
+export const generatePushToken = (): string => randomBytes(32).toString("base64url");
+
+// Push monitors have no target URL. Every new push monitor gets its own token,
+// including imports, which never reuse a token from an export file.
+const preparePushMonitor = <T extends Partial<Monitor>>(body: T): T => {
+	if (body.type !== "push") return body;
+	return {
+		...body,
+		url: PUSH_MONITOR_URL,
+		pushToken: generatePushToken(),
+		pushGracePeriod: body.pushGracePeriod ?? DefaultPushGracePeriod,
+		lastPushAt: undefined,
+	};
+};
 
 const isUptimeChecksResult = (
 	result: UptimeChecksResult | HardwareChecksResult | PageSpeedChecksResult | DockerChecksResult
@@ -119,6 +136,8 @@ export interface IMonitorService {
 	// update
 	editMonitor(args: { teamId: string; monitorId: string; body: Partial<Monitor> }): Promise<Monitor>;
 	pauseMonitor(args: { teamId: string; monitorId: string }): Promise<Monitor>;
+	regeneratePushToken(args: { teamId: string; monitorId: string }): Promise<Monitor>;
+	recordPush(pushToken: string): Promise<boolean>;
 	bulkPauseMonitors(args: { teamId: string; monitorIds: string[]; pause: boolean }): Promise<{ monitors: Monitor[]; failedCount: number }>;
 
 	// delete
@@ -195,7 +214,7 @@ export class MonitorService implements IMonitorService {
 		// Encrypt docker TLS keys
 		this.encryptDockerTls(body, "create");
 
-		const monitor = await this.monitorsRepository.create(body, teamId, userId);
+		const monitor = await this.monitorsRepository.create(preparePushMonitor(body), teamId, userId);
 		if (!monitor) {
 			throw new AppError({ message: "Failed to create monitor", status: 500, service: SERVICE_NAME, method: "createMonitor" });
 		}
@@ -205,7 +224,7 @@ export class MonitorService implements IMonitorService {
 	};
 
 	createMonitors = async (monitors: Array<Monitor>): Promise<Monitor[] | null> => {
-		const createdMonitors = await this.monitorsRepository.createMonitors(monitors);
+		const createdMonitors = await this.monitorsRepository.createMonitors(monitors.map(preparePushMonitor));
 		if (!createdMonitors || createdMonitors.length === 0) {
 			throw new AppError({ message: "Failed to create monitors", status: 500, service: SERVICE_NAME, method: "createMonitors" });
 		}
@@ -567,6 +586,11 @@ export class MonitorService implements IMonitorService {
 				body.nextNotificationReminderAt = body.notificationReminderInterval > 0 ? Date.now() + body.notificationReminderInterval : 0;
 			}
 		}
+		if (body.type === "push") {
+			body.url = PUSH_MONITOR_URL;
+			const stored = await this.monitorsRepository.findById(monitorId, teamId);
+			if (!stored.pushToken) body.pushToken = generatePushToken();
+		}
 		const editedMonitor = await this.monitorsRepository.updateById(monitorId, teamId, body, { unsetProxyId });
 		await this.scheduler.updateJob(editedMonitor);
 		return editedMonitor;
@@ -593,6 +617,17 @@ export class MonitorService implements IMonitorService {
 
 		return modifiedCount;
 	};
+
+	// Replaces the push URL; the previous URL stops being accepted immediately.
+	regeneratePushToken = async ({ teamId, monitorId }: { teamId: string; monitorId: string }): Promise<Monitor> => {
+		const stored = await this.monitorsRepository.findById(monitorId, teamId);
+		if (stored.type !== "push") {
+			throw new AppError({ message: "Only push monitors have a push URL", status: 400, service: SERVICE_NAME, method: "regeneratePushToken" });
+		}
+		return this.monitorsRepository.updateById(monitorId, teamId, { pushToken: generatePushToken() });
+	};
+
+	recordPush = async (pushToken: string): Promise<boolean> => this.monitorsRepository.recordPush(pushToken, Date.now());
 
 	pauseMonitor = async ({ teamId, monitorId }: { teamId: string; monitorId: string }): Promise<Monitor> => {
 		const monitor = await this.monitorsRepository.togglePauseById(monitorId, teamId);
@@ -725,7 +760,8 @@ export class MonitorService implements IMonitorService {
 			throw new AppError({ message: "No monitors found to export.", service: SERVICE_NAME, method: "exportMonitorsToJSON", status: 400 });
 		}
 
-		return monitors;
+		// Push URLs are credentials; imports issue new ones.
+		return monitors.map(({ pushToken: _pushToken, ...monitor }) => monitor);
 	};
 
 	importMonitorsFromJSON = async ({
@@ -741,6 +777,7 @@ export class MonitorService implements IMonitorService {
 
 		const cleanedMonitors: Monitor[] = monitors.map((monitor) => ({
 			...monitor,
+			url: monitor.url ?? "",
 			id: "",
 			teamId,
 			userId,

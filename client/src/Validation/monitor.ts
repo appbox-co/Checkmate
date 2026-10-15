@@ -7,6 +7,7 @@ import {
 	NotificationReminderIntervals,
 	PageSpeedStrategies,
 	ProxyModes,
+	PushGracePeriodOptions,
 	type MonitorType,
 } from "@/Types/Monitor";
 import { ALL_HTTP_STATUS_CODES } from "@/Utils/statusCode";
@@ -227,6 +228,15 @@ const dnsSchema = baseSchema.extend({
 	dnsRecordType: z.enum(DnsRecordTypes),
 });
 
+// Push (heartbeat) monitor schema. There is no target URL; the server issues
+// the push URL token.
+const pushSchema = baseSchema.extend({
+	type: z.literal("push"),
+	pushGracePeriod: z
+		.literal(PushGracePeriodOptions)
+		.register(monitorStepRegistry, { step: 1 }),
+});
+
 // Discriminated union of all monitor types
 const monitorSchemaUnion = z.discriminatedUnion("type", [
 	httpSchema,
@@ -239,6 +249,7 @@ const monitorSchemaUnion = z.discriminatedUnion("type", [
 	hardwareSchema,
 	websocketSchema,
 	dnsSchema,
+	pushSchema,
 ]);
 
 // Mirrors the server's refineProxySelection and refineDockerTls
@@ -318,4 +329,5 @@ export {
 	pagespeedSchema,
 	hardwareSchema,
 	websocketSchema,
+	pushSchema,
 };

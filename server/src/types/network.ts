@@ -132,6 +132,12 @@ export interface DNSStatusPayload {
 	results: unknown;
 }
 
+export interface PushStatusPayload {
+	lastPushAt: number | null; // epoch ms; null before the first push
+	silentForMs: number; // time without a push, measured from the evaluation reference
+	gracePeriod: number;
+}
+
 export interface MonitorPayloadMap {
 	ping: PingStatusPayload;
 	http: HttpStatusPayload;
@@ -143,6 +149,7 @@ export interface MonitorPayloadMap {
 	grpc: GrpcStatusPayload;
 	websocket: WebSocketStatusPayload;
 	dns: DNSStatusPayload;
+	push: PushStatusPayload;
 	unknown: unknown;
 }
 

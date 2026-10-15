@@ -42,8 +42,10 @@ import {
 	MonitorMatchMethods,
 	GeoCheckIntervalOptions,
 	ProxyModes,
+	PushGracePeriodOptions,
 	type ProxyMode,
 } from "@/Types/Monitor";
+import { PushUrlConfig } from "./PushUrlConfig";
 import type { Notification } from "@/Types/Notification";
 import type { Tag } from "@/Types/Tag";
 import type { AppSettingsResponse } from "@/Types/Settings";
@@ -247,6 +249,21 @@ const getGeneralSettingsConfig = (
 			showDnsServer: true,
 			showDnsRecordType: true,
 		},
+		push: {
+			urlLabel: "",
+			urlPlaceholder: "",
+			namePlaceholder: t("pages.createMonitor.form.general.option.name.placeholder"),
+			showUrl: false,
+			showProxy: false,
+			showPort: false,
+			showGameSelect: false,
+			showSecret: false,
+			showGrpcServiceName: false,
+			showIgnoreTls: false,
+			showStrategy: false,
+			showDnsServer: false,
+			showDnsRecordType: false,
+		},
 	};
 	return configs[type] || configs.http;
 };
@@ -385,7 +402,10 @@ const CreateMonitorPage = () => {
 		}
 
 		if (result?.success) {
-			if (pageType === "pagespeed") {
+			// A new push monitor's URL is shown on its configuration page.
+			if (!isEditMode && data.type === "push" && result.data?.id) {
+				navigate(`/uptime/configure/${result.data.id}`);
+			} else if (pageType === "pagespeed") {
 				navigate("/pagespeed");
 			} else if (pageType === "hardware") {
 				navigate("/infrastructure");
@@ -506,6 +526,22 @@ const CreateMonitorPage = () => {
 			MonitorMatchMethods.map((method) => ({
 				value: method,
 				label: t(`pages.createMonitor.form.advanced.option.matchMethod.${method}`),
+			})),
+		[t]
+	);
+
+	const pushGracePeriodOptions = useMemo(
+		() =>
+			PushGracePeriodOptions.map((value) => ({
+				value,
+				label:
+					value >= 3600000
+						? t("pages.createMonitor.form.notifications.reminders.hours", {
+								count: value / 3600000,
+							})
+						: t("pages.createMonitor.form.notifications.reminders.minutes", {
+								count: value / 60000,
+							}),
 			})),
 		[t]
 	);
@@ -720,6 +756,13 @@ const CreateMonitorPage = () => {
 					/>
 				)}
 
+				{isEditMode && existingMonitor?.type === "push" && (
+					<PushUrlConfig
+						monitor={existingMonitor}
+						onRegenerated={() => void refetchMonitor()}
+					/>
+				)}
+
 				{showStep(0) && watchedType === "docker" && isDockerTlsUrl(watchedUrl) && (
 					<ConfigBox
 						title={t("pages.createMonitor.form.dockerTls.title")}
@@ -789,6 +832,20 @@ const CreateMonitorPage = () => {
 									"pages.createMonitor.form.frequency.option.frequency.label"
 								)}
 								options={intervalOptions}
+							/>
+						}
+					/>
+				)}
+
+				{watchedType === "push" && showStep(1) && (
+					<ConfigBox
+						title={t("pages.createMonitor.form.push.graceTitle")}
+						subtitle={t("pages.createMonitor.form.push.graceDescription")}
+						rightContent={
+							<FormSelectField
+								name="pushGracePeriod"
+								fieldLabel={t("pages.createMonitor.form.push.graceLabel")}
+								options={pushGracePeriodOptions}
 							/>
 						}
 					/>

@@ -350,7 +350,7 @@
 					},
 					"type": {
 						"type": "string",
-						"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+						"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 					},
 					"url": {
 						"type": "string"
@@ -591,6 +591,16 @@
 						"type": "string",
 						"enum": ["A", "AAAA", "CNAME", "MX", "TXT", "NS"]
 					},
+					"pushToken": {
+						"type": "string"
+					},
+					"lastPushAt": {
+						"type": "number"
+					},
+					"pushGracePeriod": {
+						"type": "number",
+						"enum": [60000]
+					},
 					"teamId": {
 						"type": "string"
 					},
@@ -689,7 +699,7 @@
 									},
 									"type": {
 										"type": "string",
-										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 									},
 									"url": {
 										"type": "string"
@@ -929,6 +939,16 @@
 									"dnsRecordType": {
 										"type": "string",
 										"enum": ["A", "AAAA", "CNAME", "MX", "TXT", "NS"]
+									},
+									"pushToken": {
+										"type": "string"
+									},
+									"lastPushAt": {
+										"type": "number"
+									},
+									"pushGracePeriod": {
+										"type": "number",
+										"enum": [60000]
 									},
 									"teamId": {
 										"type": "string"
@@ -2042,7 +2062,7 @@
 								},
 								"type": {
 									"type": "string",
-									"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+									"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 								},
 								"status": {
 									"type": "string",
@@ -4245,7 +4265,7 @@
 					{
 						"schema": {
 							"type": "string",
-							"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+							"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 						},
 						"required": false,
 						"name": "type",
@@ -4680,7 +4700,7 @@
 					{
 						"schema": {
 							"type": "string",
-							"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+							"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 						},
 						"required": false,
 						"name": "type",
@@ -6706,13 +6726,13 @@
 							"anyOf": [
 								{
 									"type": "string",
-									"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+									"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 								},
 								{
 									"type": "array",
 									"items": {
 										"type": "string",
-										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 									}
 								}
 							]
@@ -6933,13 +6953,13 @@
 							"anyOf": [
 								{
 									"type": "string",
-									"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+									"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 								},
 								{
 									"type": "array",
 									"items": {
 										"type": "string",
-										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 									}
 								}
 							]
@@ -7487,7 +7507,20 @@
 														},
 														"type": {
 															"type": "string",
-															"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+															"enum": [
+																"http",
+																"ping",
+																"pagespeed",
+																"hardware",
+																"docker",
+																"port",
+																"game",
+																"grpc",
+																"websocket",
+																"dns",
+																"push",
+																"unknown"
+															]
 														},
 														"url": {
 															"type": "string"
@@ -7727,6 +7760,16 @@
 														"dnsRecordType": {
 															"type": "string",
 															"enum": ["A", "AAAA", "CNAME", "MX", "TXT", "NS"]
+														},
+														"pushToken": {
+															"type": "string"
+														},
+														"lastPushAt": {
+															"type": "number"
+														},
+														"pushGracePeriod": {
+															"type": "number",
+															"enum": [60000]
 														},
 														"teamId": {
 															"type": "string"
@@ -8173,7 +8216,20 @@
 														},
 														"type": {
 															"type": "string",
-															"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+															"enum": [
+																"http",
+																"ping",
+																"pagespeed",
+																"hardware",
+																"docker",
+																"port",
+																"game",
+																"grpc",
+																"websocket",
+																"dns",
+																"push",
+																"unknown"
+															]
 														},
 														"url": {
 															"type": "string"
@@ -8413,6 +8469,16 @@
 														"dnsRecordType": {
 															"type": "string",
 															"enum": ["A", "AAAA", "CNAME", "MX", "TXT", "NS"]
+														},
+														"pushToken": {
+															"type": "string"
+														},
+														"lastPushAt": {
+															"type": "number"
+														},
+														"pushGracePeriod": {
+															"type": "number",
+															"enum": [60000]
 														},
 														"teamId": {
 															"type": "string"
@@ -9341,6 +9407,373 @@
 				}
 			}
 		},
+		"/monitors/{monitorId}/push-token": {
+			"post": {
+				"tags": ["monitors"],
+				"summary": "Replace a push monitor's push URL token",
+				"description": "The previous push URL stops being accepted immediately. Admin/superadmin.",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"minLength": 1
+						},
+						"required": true,
+						"name": "monitorId",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [true]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"$ref": "#/components/schemas/Monitor"
+										}
+									},
+									"required": ["success", "msg", "data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Forbidden",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal server error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										},
+										"data": {
+											"nullable": true
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/push/{token}": {
+			"get": {
+				"tags": ["monitors"],
+				"summary": "Record a push for a push (heartbeat) monitor",
+				"description": "Unauthenticated; the token is the credential. Any request body is accepted and ignored, so Alertmanager webhook_configs can call it directly. The monitor is down when no push arrives within its grace period.",
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9_-]{43}$"
+						},
+						"required": true,
+						"name": "token",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Push recorded",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [true]
+										},
+										"msg": {
+											"type": "string"
+										}
+									},
+									"required": ["success", "msg"]
+								},
+								"example": {
+									"success": true,
+									"msg": "OK"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "No push monitor has this token",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": ["monitors"],
+				"summary": "Record a push for a push (heartbeat) monitor",
+				"description": "Unauthenticated; the token is the credential. Any request body is accepted and ignored, so Alertmanager webhook_configs can call it directly. The monitor is down when no push arrives within its grace period.",
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9_-]{43}$"
+						},
+						"required": true,
+						"name": "token",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Push recorded",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [true]
+										},
+										"msg": {
+											"type": "string"
+										}
+									},
+									"required": ["success", "msg"]
+								},
+								"example": {
+									"success": true,
+									"msg": "OK"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "No push monitor has this token",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"put": {
+				"tags": ["monitors"],
+				"summary": "Record a push for a push (heartbeat) monitor",
+				"description": "Unauthenticated; the token is the credential. Any request body is accepted and ignored, so Alertmanager webhook_configs can call it directly. The monitor is down when no push arrives within its grace period.",
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9_-]{43}$"
+						},
+						"required": true,
+						"name": "token",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Push recorded",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [true]
+										},
+										"msg": {
+											"type": "string"
+										}
+									},
+									"required": ["success", "msg"]
+								},
+								"example": {
+									"success": true,
+									"msg": "OK"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "No push monitor has this token",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					}
+				}
+			},
+			"head": {
+				"tags": ["monitors"],
+				"summary": "Record a push for a push (heartbeat) monitor",
+				"description": "Unauthenticated; the token is the credential. Any request body is accepted and ignored, so Alertmanager webhook_configs can call it directly. The monitor is down when no push arrives within its grace period.",
+				"parameters": [
+					{
+						"schema": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9_-]{43}$"
+						},
+						"required": true,
+						"name": "token",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Push recorded",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [true]
+										},
+										"msg": {
+											"type": "string"
+										}
+									},
+									"required": ["success", "msg"]
+								},
+								"example": {
+									"success": true,
+									"msg": "OK"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "No push monitor has this token",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [false]
+										},
+										"msg": {
+											"type": "string"
+										}
+									},
+									"required": ["success", "msg"]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/monitors/certificate/{monitorId}": {
 			"get": {
 				"tags": ["monitors"],
@@ -9767,7 +10200,7 @@
 									},
 									"type": {
 										"type": "string",
-										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 									},
 									"statusWindowSize": {
 										"type": "number",
@@ -9782,8 +10215,7 @@
 										"default": 60
 									},
 									"url": {
-										"type": "string",
-										"minLength": 1
+										"type": "string"
 									},
 									"ignoreTlsErrors": {
 										"type": "boolean",
@@ -9991,9 +10423,13 @@
 									"dnsRecordType": {
 										"type": "string",
 										"enum": ["A", "AAAA", "CNAME", "MX", "TXT", "NS"]
+									},
+									"pushGracePeriod": {
+										"type": "number",
+										"enum": [60000]
 									}
 								},
-								"required": ["name", "type", "url"]
+								"required": ["name", "type"]
 							}
 						}
 					}
@@ -10478,7 +10914,7 @@
 												},
 												"type": {
 													"type": "string",
-													"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+													"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 												},
 												"ignoreTlsErrors": {
 													"type": "boolean",
@@ -10536,8 +10972,7 @@
 													"default": "GET"
 												},
 												"url": {
-													"type": "string",
-													"minLength": 1
+													"type": "string"
 												},
 												"port": {
 													"type": "number"
@@ -10689,6 +11124,10 @@
 													"type": "string",
 													"enum": ["A", "AAAA", "CNAME", "MX", "TXT", "NS"]
 												},
+												"pushGracePeriod": {
+													"type": "number",
+													"enum": [60000]
+												},
 												"createdAt": {
 													"type": "string"
 												},
@@ -10696,7 +11135,7 @@
 													"type": "string"
 												}
 											},
-											"required": ["name", "type", "url"]
+											"required": ["name", "type"]
 										},
 										"minItems": 1
 									}
@@ -11064,7 +11503,7 @@
 									},
 									"type": {
 										"type": "string",
-										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"]
+										"enum": ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "push", "unknown"]
 									},
 									"url": {
 										"type": "string"
@@ -11292,6 +11731,10 @@
 									"dnsRecordType": {
 										"type": "string",
 										"enum": ["A", "AAAA", "CNAME", "MX", "TXT", "NS"]
+									},
+									"pushGracePeriod": {
+										"type": "number",
+										"enum": [60000]
 									}
 								}
 							}

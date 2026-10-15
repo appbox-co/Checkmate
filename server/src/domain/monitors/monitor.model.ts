@@ -9,6 +9,7 @@ import {
 	PageSpeedStrategies,
 	HttpMethods,
 	ProxyModes,
+	PushGracePeriods,
 } from "@/domain/monitors/monitor.type.js";
 import type {
 	CheckAudits,
@@ -341,6 +342,19 @@ const MonitorSchema = new Schema<MonitorDocument>(
 			type: String,
 			enum: DnsRecordTypes,
 		},
+		pushToken: {
+			type: String,
+			default: undefined,
+		},
+		lastPushAt: {
+			type: Number,
+			default: undefined,
+		},
+		pushGracePeriod: {
+			type: Number,
+			enum: PushGracePeriods,
+			default: undefined,
+		},
 		recentChecks: {
 			type: [checkSnapshotSchema],
 			default: [],
@@ -356,6 +370,7 @@ const MonitorSchema = new Schema<MonitorDocument>(
 );
 
 MonitorSchema.index({ teamId: 1, type: 1 });
+MonitorSchema.index({ pushToken: 1 }, { unique: true, partialFilterExpression: { pushToken: { $type: "string" } } });
 
 const MonitorModel = model<MonitorDocument>("Monitor", MonitorSchema);
 

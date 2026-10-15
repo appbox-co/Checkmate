@@ -7,7 +7,7 @@ import type { ApiServices } from "@/config/services.api.js";
 
 import { createAuthRoutes } from "@/api/routes/authRoutes.js";
 import { createInviteRoutes } from "@/api/routes/inviteRoutes.js";
-import { createMonitorRoutes } from "@/api/routes/monitorRoutes.js";
+import { createMonitorRoutes, createPushRoutes } from "@/api/routes/monitorRoutes.js";
 import { createCheckRoutes } from "@/api/routes/checkRoutes.js";
 import { createGeoCheckRoutes } from "@/api/routes/geoCheckRoutes.js";
 import { createSettingsRoutes } from "@/api/routes/settingsRoutes.js";
@@ -25,6 +25,7 @@ export const setupRoutes = (app: Application, controllers: InitializedController
 	const verifyJWT = createVerifyJWT(apiServices.settingsService);
 	const authRoutes = createAuthRoutes(controllers.authController, verifyJWT);
 	const monitorRoutes = createMonitorRoutes(controllers.monitorController);
+	const pushRoutes = createPushRoutes(controllers.monitorController);
 	const settingsRoutes = createSettingsRoutes(controllers.settingsController);
 	const checkRoutes = createCheckRoutes(controllers.checkController);
 	const geoCheckRoutes = createGeoCheckRoutes(controllers.geoCheckController);
@@ -42,6 +43,7 @@ export const setupRoutes = (app: Application, controllers: InitializedController
 
 	app.use("/api/v1/auth", authApiLimiter, authRoutes);
 	app.use("/api/v1/monitors", verifyJWT, monitorRoutes);
+	app.use("/api/v1/push", pushRoutes);
 	app.use("/api/v1/settings", verifyJWT, settingsRoutes);
 	app.use("/api/v1/checks", verifyJWT, checkRoutes);
 	app.use("/api/v1/geo-checks", verifyJWT, geoCheckRoutes);

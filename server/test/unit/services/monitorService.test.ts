@@ -2197,3 +2197,88 @@ describe("editing reminder intervals", () => {
 		expect((monitorsRepository.updateById as jest.Mock).mock.calls[0][2]).not.toHaveProperty("nextNotificationReminderAt");
 	});
 });
+
+describe("push monitors", () => {
+	const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
+
+	it("creates push monitors with a generated token, placeholder URL and default grace period", async () => {
+		const monitorsRepository = createMonitorsRepositoryMock();
+		(monitorsRepository.create as jest.Mock).mockImplementation(async (body: any) => ({ ...makeMonitor(), ...body }));
+		const { service, jobQueue } = createService({ monitorsRepository });
+		await service.createMonitor(TEAM_ID, USER_ID, { name: "Watchdog", type: "push", interval: 60000 } as any);
+		const stored = (monitorsRepository.create as jest.Mock).mock.calls[0][0] as any;
+		expect(stored.url).toBe("push");
+		expect(stored.pushToken).toMatch(tokenPattern);
+		expect(stored.pushGracePeriod).toBe(300000);
+		expect(jobQueue.addJob).toHaveBeenCalled();
+	});
+
+	it("gives every imported push monitor a new token", async () => {
+		const monitorsRepository = createMonitorsRepositoryMock();
+		(monitorsRepository.createMonitors as jest.Mock).mockImplementation(async (monitors: any) =>
+			monitors.map((m: any, i: number) => ({ ...m, id: `m${i}` }))
+		);
+		const { service } = createService({ monitorsRepository });
+		await service.importMonitorsFromJSON({
+			teamId: TEAM_ID,
+			userId: USER_ID,
+			monitors: [
+				{ name: "a", type: "push", pushGracePeriod: 600000 },
+				{ name: "b", type: "push" },
+				{ name: "c", type: "http", url: "https://example.com" },
+			] as any,
+		});
+		const [a, b, c] = (monitorsRepository.createMonitors as jest.Mock).mock.calls[0][0] as any[];
+		expect(a.pushToken).toMatch(tokenPattern);
+		expect(b.pushToken).toMatch(tokenPattern);
+		expect(a.pushToken).not.toBe(b.pushToken);
+		expect(a.pushGracePeriod).toBe(600000);
+		expect(c.pushToken).toBeUndefined();
+		expect(c.url).toBe("https://example.com");
+	});
+
+	it("keeps an existing token on edit and pins the placeholder URL", async () => {
+		const monitorsRepository = createMonitorsRepositoryMock();
+		(monitorsRepository.findById as jest.Mock).mockResolvedValue(makeMonitor({ type: "push", pushToken: "k".repeat(43) }));
+		(monitorsRepository.updateById as jest.Mock).mockImplementation(async (_id: any, _team: any, body: any) => ({ ...makeMonitor(), ...body }));
+		const { service } = createService({ monitorsRepository });
+		await service.editMonitor({ teamId: TEAM_ID, monitorId: MONITOR_ID, body: { type: "push", pushGracePeriod: 600000 } });
+		const patch = (monitorsRepository.updateById as jest.Mock).mock.calls[0][2] as any;
+		expect(patch).not.toHaveProperty("pushToken");
+		expect(patch.url).toBe("push");
+	});
+
+	it("regenerates the token only for push monitors", async () => {
+		const monitorsRepository = createMonitorsRepositoryMock();
+		(monitorsRepository.findById as jest.Mock).mockResolvedValueOnce(makeMonitor({ type: "push", pushToken: "k".repeat(43) }));
+		(monitorsRepository.updateById as jest.Mock).mockImplementation(async (_id: any, _team: any, body: any) => ({ ...makeMonitor(), ...body }));
+		const { service } = createService({ monitorsRepository });
+		const updated = await service.regeneratePushToken({ teamId: TEAM_ID, monitorId: MONITOR_ID });
+		expect(updated.pushToken).toMatch(tokenPattern);
+		expect(updated.pushToken).not.toBe("k".repeat(43));
+
+		(monitorsRepository.findById as jest.Mock).mockResolvedValueOnce(makeMonitor());
+		await expect(service.regeneratePushToken({ teamId: TEAM_ID, monitorId: MONITOR_ID })).rejects.toMatchObject({ status: 400 });
+	});
+
+	it("omits push tokens from exports", async () => {
+		const monitorsRepository = createMonitorsRepositoryMock();
+		(monitorsRepository.findByTeamId as jest.Mock).mockResolvedValue([
+			makeMonitor({ type: "push", pushToken: "k".repeat(43), pushGracePeriod: 300000 }),
+		]);
+		const { service } = createService({ monitorsRepository });
+		const [exported] = await service.exportMonitorsToJSON({ teamId: TEAM_ID });
+		expect(exported).not.toHaveProperty("pushToken");
+		expect(exported.pushGracePeriod).toBe(300000);
+	});
+
+	it("records pushes through the repository with the current time", async () => {
+		const monitorsRepository = { ...createMonitorsRepositoryMock(), recordPush: jest.fn().mockResolvedValue(true) } as unknown as IMonitorsRepository;
+		const { service } = createService({ monitorsRepository });
+		const before = Date.now();
+		expect(await service.recordPush("k".repeat(43))).toBe(true);
+		const [token, at] = (monitorsRepository.recordPush as jest.Mock).mock.calls[0] as [string, number];
+		expect(token).toBe("k".repeat(43));
+		expect(at).toBeGreaterThanOrEqual(before);
+	});
+});

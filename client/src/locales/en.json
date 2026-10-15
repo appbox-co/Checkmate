@@ -572,7 +572,8 @@
 					"optionHardware": "Infrastructure",
 					"optionGrpc": "gRPC",
 					"optionWebSocket": "WebSocket",
-					"optionDns": "DNS"
+					"optionDns": "DNS",
+					"optionPush": "Heartbeat"
 				}
 			}
 		},
@@ -724,7 +725,8 @@
 						"grpc": "Enter the hostname and port of the gRPC server, optionally specify a service name for the health check, and add a display name.",
 						"websocket": "Enter the WebSocket URL to monitor (e.g., wss://example.com/socket) and add a display name.",
 						"hardware": "Monitor CPU, memory, disk usage, and temperature for your infrastructure. The Capture endpoint URL must include the full path /api/v1/metrics (e.g. http://192.168.1.10:5001/api/v1/metrics). For the authorization secret, paste only the token string — don't include 'Bearer'.",
-						"dns": "Monitor if a specific DNS server is responding."
+						"dns": "Monitor if a specific DNS server is responding.",
+						"push": "Add a display name. After saving, the configuration page shows a unique push URL. Have the monitored system call it with GET or POST (any body is ignored), for example from a cron job or an Alertmanager webhook."
 					}
 				},
 				"ignoreTls": {
@@ -775,7 +777,8 @@
 					"optionPingDescription": "Use ICMP Ping to monitor if a server is online.",
 					"optionPortDescription": "Monitor if a specific port on a server is open.",
 					"optionDnsDescription": "Monitor if a specific DNS server is responding.",
-					"title": "Type"
+					"title": "Type",
+					"optionPushDescription": "Alert when a service stops calling its unique push URL (heartbeat / dead man's switch)."
 				},
 				"thresholds": {
 					"title": "Alert thresholds",
@@ -867,6 +870,22 @@
 							"description": "Skips verifying the daemon's certificate, so the CA certificate becomes optional. The client certificate and key are still required because the daemon verifies them."
 						}
 					}
+				},
+				"push": {
+					"title": "Push URL",
+					"description": "The monitored system calls this URL to report that it is alive. Anyone with the URL can send pushes, so keep it secret.",
+					"urlLabel": "Push URL",
+					"copy": "Copy URL",
+					"copied": "Push URL copied",
+					"copyFailed": "Could not copy the push URL",
+					"regenerate": "Regenerate URL",
+					"regenerateTitle": "Regenerate push URL?",
+					"regenerateDescription": "The current URL stops working immediately. Update every system that calls it.",
+					"lastPush": "Last push received {{date}}",
+					"noPush": "No push received yet",
+					"graceTitle": "Grace period",
+					"graceDescription": "The monitor goes down when no push arrives for this long. Check frequency controls how often Checkmate evaluates it.",
+					"graceLabel": "Alert after no push for"
 				}
 			}
 		},

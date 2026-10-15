@@ -5,6 +5,7 @@ import {
 	DefaultMonitorMatchMethod,
 	DefaultPageSpeedStrategy,
 	DefaultProxyMode,
+	DefaultPushGracePeriod,
 } from "@/Types/Monitor";
 import type { Monitor, MonitorType } from "@/Types/Monitor";
 
@@ -142,6 +143,17 @@ export const getMonitorDefaults = (
 				url: data?.url || "",
 				dnsServer: data?.dnsServer || "",
 				dnsRecordType: data?.dnsRecordType || "A",
+			};
+			break;
+		case "push":
+			defaults = {
+				...base,
+				type: "push",
+				pushGracePeriod: data?.pushGracePeriod ?? DefaultPushGracePeriod,
+				// Alert on the first evaluation after the grace period; the grace
+				// period already absorbs late pushes.
+				statusWindowSize: data?.statusWindowSize || 1,
+				statusWindowThreshold: data?.statusWindowThreshold || 100,
 			};
 			break;
 		default:

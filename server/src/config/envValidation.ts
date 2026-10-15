@@ -63,6 +63,8 @@ const envSchema = z.object({
 	CLIENT_CONFIG_API_BASE_URL: z.string().optional(),
 	CLIENT_CONFIG_CLIENT_HOST: z.string().url("CLIENT_CONFIG_CLIENT_HOST must be a valid URL").optional(),
 	CLIENT_CONFIG_LOG_LEVEL: z.enum(LogLevels).optional(),
+	// Public origin shown in push monitor URLs, when the dashboard is reached through another address
+	CLIENT_CONFIG_PUSH_BASE_URL: z.string().url("CLIENT_CONFIG_PUSH_BASE_URL must be a valid URL").optional(),
 
 	// Optional
 	ORIGIN: z.string().optional(),

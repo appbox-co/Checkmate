@@ -32,6 +32,7 @@ export const createMonitorRoutes = (monitorController: IMonitorController): Rout
 
 	// General monitor routes
 	router.post("/pause/:monitorId", isAllowed(["admin", "superadmin"]), monitorController.pauseMonitor);
+	router.post("/:monitorId/push-token", isAllowed(["admin", "superadmin"]), monitorController.regeneratePushToken);
 	router.post("/bulk/pause", isAllowed(["admin", "superadmin"]), monitorController.bulkPauseMonitors);
 
 	// Util routes
@@ -58,5 +59,15 @@ export const createMonitorRoutes = (monitorController: IMonitorController): Rout
 	router.get("/:monitorId", monitorController.getMonitorById);
 	router.patch("/:monitorId", isAllowed(["admin", "superadmin"]), monitorController.editMonitor);
 	router.delete("/:monitorId", isAllowed(["admin", "superadmin"]), monitorController.deleteMonitor);
+	return router;
+};
+
+// Mounted without JWT: push monitors authenticate by the token in the path.
+export const createPushRoutes = (monitorController: IMonitorController): Router => {
+	const router = Router();
+	router.get("/:token", monitorController.recordPush);
+	router.head("/:token", monitorController.recordPush);
+	router.post("/:token", monitorController.recordPush);
+	router.put("/:token", monitorController.recordPush);
 	return router;
 };

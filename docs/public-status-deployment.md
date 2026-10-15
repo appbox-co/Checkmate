@@ -15,7 +15,7 @@ The public page is https://status.appbox.co/. Administration stays at http://loc
 
 ## Routing and caching
 
-HTTP redirects to HTTPS. Nginx exposes only the status document, runtime config, frontend assets, favicon, source download and the existing public status API. Admin paths return 404 and write methods return 405.
+HTTP redirects to HTTPS. Nginx exposes only the status document, runtime config, frontend assets, favicon, source download, the existing public status API and push monitor receipts. Admin paths return 404 and write methods return 405, except POST/PUT to /api/v1/push/<token>. Push requests must match the 43-character token shape, are never cached and may carry up to 64 KB. The application sets CLIENT_CONFIG_PUSH_BASE_URL to https://status.appbox.co in /opt/checkmate/compose.yaml, so the SSH-tunnel dashboard shows public push URLs. See [Push monitors](push-monitors.md).
 
 The public /config.js selects same-origin API requests and identifies the existing private instance hostname so Checkmate renders its custom-domain status view at /. Requests to the two public status API routes resolve only the Appbox page. They use fixed monitor types and the validated latest, 30d, 60d or 90d range. Authentication headers and cookies are not forwarded on this public surface.
 

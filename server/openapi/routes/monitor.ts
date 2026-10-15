@@ -11,6 +11,8 @@ import {
 	createMonitorBodyValidation,
 	editMonitorBodyValidation,
 	pauseMonitorParamValidation,
+	pushParamValidation,
+	regeneratePushTokenParamValidation,
 	getUptimeDetailsByIdParamValidation,
 	getUptimeDetailsByIdQueryValidation,
 	importMonitorsBodyValidation,
@@ -172,6 +174,33 @@ registry.registerPath({
 	request: { params: pauseMonitorParamValidation },
 	responses: { "200": okJson(monitorObject), ...standardErrors },
 });
+
+registry.registerPath({
+	method: "post",
+	path: "/monitors/{monitorId}/push-token",
+	tags,
+	summary: "Replace a push monitor's push URL token",
+	description: "The previous push URL stops being accepted immediately. Admin/superadmin.",
+	security: bearer,
+	request: { params: regeneratePushTokenParamValidation },
+	responses: { "200": okJson(monitorObject), ...standardErrors },
+});
+
+for (const method of ["get", "post", "put", "head"] as const) {
+	registry.registerPath({
+		method,
+		path: "/push/{token}",
+		tags,
+		summary: "Record a push for a push (heartbeat) monitor",
+		description:
+			"Unauthenticated; the token is the credential. Any request body is accepted and ignored, so Alertmanager webhook_configs can call it directly. The monitor is down when no push arrives within its grace period.",
+		request: { params: pushParamValidation },
+		responses: {
+			"200": okJsonNoData("Push recorded"),
+			"404": { description: "No push monitor has this token", content: json(z.object({ success: z.literal(false), msg: z.string() })) },
+		},
+	});
+}
 
 registry.registerPath({
 	method: "get",

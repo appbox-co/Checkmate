@@ -41,6 +41,12 @@ class MongoMonitorsRepository implements IMonitorsRepository {
 		return this.toEntity(monitor);
 	};
 
+	// Pushes keep the newest receipt time. Without timestamps, a push is not a configuration change.
+	recordPush = async (pushToken: string, now: number): Promise<boolean> => {
+		const result = await MonitorModel.updateOne({ pushToken, type: "push" }, { $max: { lastPushAt: now } }, { timestamps: false });
+		return result.matchedCount > 0;
+	};
+
 	findByIdLean = async (monitorId: string): Promise<Monitor | null> => {
 		const monitor = await MonitorModel.findOne({ _id: monitorId }).select({ recentChecks: 0 });
 		return monitor ? this.toEntity(monitor) : null;
@@ -543,6 +549,9 @@ class MongoMonitorsRepository implements IMonitorsRepository {
 			dockerTlsKeySet: doc.dockerTlsKeySet ?? false,
 			dnsServer: doc.dnsServer ?? undefined,
 			dnsRecordType: doc.dnsRecordType ?? undefined,
+			pushToken: doc.pushToken ?? undefined,
+			lastPushAt: doc.lastPushAt ?? undefined,
+			pushGracePeriod: doc.pushGracePeriod ?? undefined,
 			createdAt: toDateString(doc.createdAt),
 			updatedAt: toDateString(doc.updatedAt),
 			lastEvaluatedAt: doc.lastEvaluatedAt,

@@ -13,6 +13,7 @@ export type ClientRuntimeConfig = {
 	apiBaseUrl?: string;
 	clientHost?: string;
 	logLevel?: LogLevel;
+	pushBaseUrl?: string;
 };
 
 export interface SettingsThresholds {

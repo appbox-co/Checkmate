@@ -6,6 +6,8 @@ export interface RuntimeConfig {
 	apiBaseUrl?: string;
 	clientHost?: string;
 	logLevel?: LogLevel;
+	// Public origin for push monitor URLs when the dashboard is reached through another address
+	pushBaseUrl?: string;
 }
 
 declare global {

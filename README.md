@@ -11,6 +11,7 @@ Appbox's fork of [Checkmate by BlueWave Labs](https://github.com/bluewave-labs/C
 - **Recurring reminders:** choose a repeat interval in each monitor's notification settings, or disable reminders. The schedule survives restarts and respects pauses and maintenance windows. [Details](docs/recurring-reminders.md)
 - **Geographic outage detection:** Globalping HTTP and ping checks from selected continents contribute to the monitor's overall status. Confirmed failures in any region can open an incident; outage, reminder and recovery notifications identify the affected locations. [Details](docs/geographic-outages.md)
 - **Transient-failure filtering:** new regional failures receive an immediate retry and need a separate failed check started at least 60 seconds after the first failing check before opening an outage. Pending and failed regions get faster follow-up checks. For ping, any reply means reachable; packet-loss counts are retained for diagnosis. [Details](docs/geographic-retries.md)
+- **Heartbeat (push) monitors:** systems such as Alertmanager or cron jobs call a unique push URL; the monitor alerts when pushes stop for longer than its grace period. [Details](docs/push-monitors.md)
 - **Pushover emergency priority:** problem alerts and recurring reminders repeat through Pushover until acknowledged or expired. Recovery and test messages use normal priority. [Details](docs/pushover-alerts.md)
 
 ### Public status pages

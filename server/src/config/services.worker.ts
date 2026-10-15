@@ -40,6 +40,7 @@ import { GameProvider } from "@/service/network/GameProvider.js";
 import { GrpcProvider } from "@/service/network/GrpcProvider.js";
 import { WebSocketProvider } from "@/service/network/WebSocketProvider.js";
 import { DNSProvider } from "@/service/network/DNSProvider.js";
+import { PushProvider } from "@/service/network/PushProvider.js";
 import { AppError } from "@/utils/AppError.js";
 export interface WorkerServices {
 	worker: IQueueWorker;
@@ -85,6 +86,7 @@ export const buildWorker = async (shared: SharedServices, envSettings: EnvConfig
 	const grpcProvider = new GrpcProvider(grpc, protoLoader);
 	const webSocketProvider = new WebSocketProvider(WebSocket);
 	const dnsProvider = new DNSProvider(() => new Resolver());
+	const pushProvider = new PushProvider();
 
 	const networkService = new NetworkService(axios, logger, [
 		pingProvider,
@@ -97,6 +99,7 @@ export const buildWorker = async (shared: SharedServices, envSettings: EnvConfig
 		grpcProvider,
 		webSocketProvider,
 		dnsProvider,
+		pushProvider,
 	]);
 
 	const proxyResolver = new ProxyResolver(proxiesRepository, settingsService, logger);

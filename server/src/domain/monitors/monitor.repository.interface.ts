@@ -26,6 +26,8 @@ export interface IMonitorsRepository {
 	findById(monitorId: string, teamId: string): Promise<Monitor>;
 	// for workers, don't need all details
 	findByIdLean(monitorId: string): Promise<Monitor | null>;
+	// Record a push for a push monitor; false when no push monitor has this token.
+	recordPush(pushToken: string, now: number): Promise<boolean>;
 
 	// collection fetch
 	findAllForScheduling(): Promise<MonitorScheduleFields[]>;

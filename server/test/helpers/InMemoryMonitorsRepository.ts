@@ -52,6 +52,13 @@ export class InMemoryMonitorsRepository implements IMonitorsRepository {
 		return monitor ? { ...monitor } : null;
 	}
 
+	async recordPush(pushToken: string, now: number): Promise<boolean> {
+		const monitor = this.monitors.find((m) => m.type === "push" && m.pushToken === pushToken);
+		if (!monitor) return false;
+		monitor.lastPushAt = Math.max(monitor.lastPushAt ?? 0, now);
+		return true;
+	}
+
 	async claimNotificationReminder(monitorId: string, teamId: string, interval: number, now: number): Promise<Monitor | null> {
 		const monitor = this.monitors.find((m) => m.id === monitorId && m.teamId === teamId);
 		if (

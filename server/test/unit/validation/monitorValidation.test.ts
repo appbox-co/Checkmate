@@ -5,6 +5,7 @@ import {
 	editMonitorBodyValidation,
 	importMonitorsBodyValidation,
 	getDockerContainerLogsQueryValidation,
+	pushParamValidation,
 } from "../../../src/api/validation/monitorValidation.ts";
 
 describe("getDockerContainerLogsQueryValidation", () => {
@@ -822,5 +823,41 @@ describe("recurring reminder validation", () => {
 		expect(importMonitorsBodyValidation.parse({ monitors: [base] }).monitors[0]?.notificationReminderInterval).toBe(0);
 		expect(createMonitorBodyValidation.parse({ ...base, nextNotificationReminderAt: 42 })).not.toHaveProperty("nextNotificationReminderAt");
 		expect(editMonitorBodyValidation.parse({ nextNotificationReminderAt: 42 })).not.toHaveProperty("nextNotificationReminderAt");
+	});
+});
+
+describe("monitorValidation — push monitors", () => {
+	const base = { name: "Alertmanager watchdog", statusWindowSize: 1, statusWindowThreshold: 100 };
+
+	it("accepts a push monitor without a URL and with a supported grace period", () => {
+		const parsed = createMonitorBodyValidation.parse({ ...base, type: "push", pushGracePeriod: 300000 });
+		expect(parsed.url).toBeUndefined();
+		expect(parsed.pushGracePeriod).toBe(300000);
+	});
+
+	it("still requires a URL for every other type", () => {
+		expect(createMonitorBodyValidation.safeParse({ ...base, type: "http" }).success).toBe(false);
+		expect(importMonitorsBodyValidation.safeParse({ monitors: [{ ...base, type: "ping" }] }).success).toBe(false);
+		expect(importMonitorsBodyValidation.safeParse({ monitors: [{ ...base, type: "push" }] }).success).toBe(true);
+	});
+
+	it("rejects unsupported grace periods", () => {
+		expect(createMonitorBodyValidation.safeParse({ ...base, type: "push", pushGracePeriod: 1000 }).success).toBe(false);
+		expect(editMonitorBodyValidation.safeParse({ pushGracePeriod: 1000 }).success).toBe(false);
+		expect(editMonitorBodyValidation.parse({ pushGracePeriod: 600000 }).pushGracePeriod).toBe(600000);
+	});
+
+	it("never lets a client choose the push token or receipt time", () => {
+		const parsed = createMonitorBodyValidation.parse({ ...base, type: "push", pushToken: "x".repeat(43), lastPushAt: 1 }) as Record<string, unknown>;
+		expect(parsed.pushToken).toBeUndefined();
+		expect(parsed.lastPushAt).toBeUndefined();
+		const edited = editMonitorBodyValidation.parse({ pushToken: "x".repeat(43) }) as Record<string, unknown>;
+		expect(edited.pushToken).toBeUndefined();
+	});
+
+	it("only accepts generated push token shapes", () => {
+		expect(pushParamValidation.safeParse({ token: "A-_".repeat(14) + "z" }).success).toBe(true);
+		expect(pushParamValidation.safeParse({ token: "short" }).success).toBe(false);
+		expect(pushParamValidation.safeParse({ token: "a".repeat(42) + "/" }).success).toBe(false);
 	});
 });

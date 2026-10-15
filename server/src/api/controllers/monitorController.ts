@@ -9,6 +9,8 @@ import {
 	createMonitorBodyValidation,
 	editMonitorBodyValidation,
 	pauseMonitorParamValidation,
+	pushParamValidation,
+	regeneratePushTokenParamValidation,
 	getCertificateParamValidation,
 	getDomainParamValidation,
 	getHardwareDetailsByIdParamValidation,
@@ -47,6 +49,8 @@ export interface IMonitorController {
 	deleteAllMonitors: RequestHandler;
 	editMonitor: RequestHandler;
 	pauseMonitor: RequestHandler;
+	regeneratePushToken: RequestHandler;
+	recordPush: RequestHandler;
 	bulkPauseMonitors: RequestHandler;
 	addDemoMonitors: RequestHandler;
 	getMonitorsByTeamId: RequestHandler;
@@ -345,6 +349,24 @@ class MonitorController implements IMonitorController {
 			msg: monitor.isActive ? "Monitor resumed successfully" : "Monitor paused successfully",
 			data: monitor,
 		});
+	});
+
+	regeneratePushToken = catchAsync(async (req: Request, res: Response) => {
+		const { monitorId } = regeneratePushTokenParamValidation.parse(req.params);
+		const teamId = requireTeamId(req.user?.teamId);
+		const monitor = await this.monitorService.regeneratePushToken({ teamId, monitorId });
+		return res.status(200).json({ success: true, msg: "Push URL regenerated successfully", data: monitor });
+	});
+
+	// Unauthenticated: the token is the credential. Any method and body is accepted
+	// (e.g. Alertmanager webhook POSTs); the body is ignored.
+	recordPush = catchAsync(async (req: Request, res: Response) => {
+		const parsed = pushParamValidation.safeParse(req.params);
+		const recorded = parsed.success && (await this.monitorService.recordPush(parsed.data.token));
+		if (!recorded) {
+			return res.status(404).json({ success: false, msg: "Push monitor not found" });
+		}
+		return res.status(200).json({ success: true, msg: "Push recorded" });
 	});
 
 	bulkPauseMonitors = catchAsync(async (req: Request, res: Response) => {

@@ -33,7 +33,20 @@ export const HttpStatusCodes = [
 export const HttpStatusCodeSet = new Set(HttpStatusCodes);
 export type HttpStatusCode = number;
 
-export const MonitorTypes = ["http", "ping", "pagespeed", "hardware", "docker", "port", "game", "grpc", "websocket", "dns", "unknown"] as const;
+export const MonitorTypes = [
+	"http",
+	"ping",
+	"pagespeed",
+	"hardware",
+	"docker",
+	"port",
+	"game",
+	"grpc",
+	"websocket",
+	"dns",
+	"push",
+	"unknown",
+] as const;
 export type MonitorType = (typeof MonitorTypes)[number];
 
 export const PageSpeedStrategies = ["desktop", "mobile"] as const;
@@ -46,7 +59,16 @@ export const supportsGeoCheck = (type: MonitorType): boolean => GeoCheckSupporte
 export const ProxyModes = ["inherit", "none", "custom"] as const;
 export type ProxyMode = (typeof ProxyModes)[number];
 
-export const UptimeDetailsSupportedTypes = ["http", "ping", "port", "game", "grpc", "websocket", "dns"] as const satisfies readonly MonitorType[];
+export const UptimeDetailsSupportedTypes = [
+	"http",
+	"ping",
+	"port",
+	"game",
+	"grpc",
+	"websocket",
+	"dns",
+	"push",
+] as const satisfies readonly MonitorType[];
 export type UptimeDetailsSupportedType = (typeof UptimeDetailsSupportedTypes)[number];
 export const supportsUptimeDetails = (type: MonitorType): type is UptimeDetailsSupportedType => UptimeDetailsSupportedTypes.some((t) => t === type);
 
@@ -66,6 +88,13 @@ export type HttpMethod = (typeof HttpMethods)[number];
 export const NotificationReminderIntervals = [0, 300000, 900000, 1800000, 3600000, 10800000, 21600000, 43200000, 86400000] as const;
 
 export const MAX_RECENT_CHECKS = 50;
+
+// Push (heartbeat) monitors: the monitored system calls /api/v1/push/<token>.
+// The check is down once no push has arrived within the grace period.
+export const PushGracePeriods = [60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 7200000, 21600000, 43200000, 86400000] as const;
+export const DefaultPushGracePeriod = 300000;
+// Stored in monitor.url, which is shown in lists and notifications; the token is never placed there.
+export const PUSH_MONITOR_URL = "push";
 
 export interface Monitor {
 	id: string;
@@ -123,6 +152,9 @@ export interface Monitor {
 	dockerTlsKeySet?: boolean;
 	dnsServer?: string;
 	dnsRecordType?: DnsRecordType;
+	pushToken?: string;
+	lastPushAt?: number; // epoch ms
+	pushGracePeriod?: number; // ms
 	recentChecks: CheckSnapshot[];
 	createdAt: string;
 	updatedAt: string;

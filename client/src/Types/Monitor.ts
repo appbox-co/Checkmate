@@ -24,6 +24,7 @@ export const MonitorTypes = [
 	"grpc",
 	"websocket",
 	"dns",
+	"push",
 	"unknown",
 ] as const;
 export type MonitorType = (typeof MonitorTypes)[number];
@@ -38,6 +39,7 @@ export const SelectableMonitorTypes = [
 	"grpc",
 	"websocket",
 	"dns",
+	"push",
 ] as const;
 export type SelectableMonitorType = (typeof SelectableMonitorTypes)[number];
 
@@ -56,6 +58,7 @@ export const monitorTypeLabelKey: Record<SelectableMonitorType, string> &
 	grpc: "optionGrpc",
 	websocket: "optionWebSocket",
 	dns: "optionDns",
+	push: "optionPush",
 	hardware: "optionHardware",
 	pagespeed: "optionPagespeed",
 };
@@ -72,6 +75,14 @@ export const MonitorIntervalOptions = [
 	{ value: 900000, labelKey: "fifteenMinutes" },
 	{ value: 1800000, labelKey: "thirtyMinutes" },
 ] as const;
+
+// Mirrors PushGracePeriods in server/src/domain/monitors/monitor.type.ts.
+export const PushGracePeriodOptions = [
+	60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 7200000, 21600000, 43200000,
+	86400000,
+] as const;
+export type PushGracePeriod = (typeof PushGracePeriodOptions)[number];
+export const DefaultPushGracePeriod: PushGracePeriod = 300000;
 
 export const GeoCheckIntervalOptions = MonitorIntervalOptions.filter(
 	({ value }) => value >= 300000
@@ -170,6 +181,9 @@ export interface Monitor {
 	dockerTlsKeySet?: boolean;
 	dnsServer?: string;
 	dnsRecordType?: DnsRecordType;
+	pushToken?: string;
+	lastPushAt?: number;
+	pushGracePeriod?: PushGracePeriod;
 	recentChecks: CheckSnapshot[];
 	dailyChecks?: DailyCheckBucket[];
 	createdAt: string;
