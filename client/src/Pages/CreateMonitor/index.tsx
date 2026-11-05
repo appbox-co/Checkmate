@@ -72,6 +72,18 @@ const httpMethodOptions = HttpMethods.map((method) => ({
 
 const PEM_FIELD_ROWS = 6;
 
+// Types whose checks have a meaningful response time.
+const showsResponseTime = (type: MonitorType) =>
+	!["push", "hardware", "pagespeed", "docker"].includes(type);
+
+type MonitorRequest = Omit<
+	MonitorFormData,
+	"responseTimeMediumThreshold" | "responseTimeSlowThreshold"
+> & {
+	responseTimeMediumThreshold: number | null;
+	responseTimeSlowThreshold: number | null;
+};
+
 // Hides the pasted key while the field is not focused. Ignored by browsers
 // without -webkit-text-security, which then show the key as plain text.
 const maskedInputSx = {
@@ -364,8 +376,8 @@ const CreateMonitorPage = () => {
 
 	const pemInputSx = { fontFamily: theme.typography.fontFamilyMonospace };
 
-	const { post, loading: isCreating } = usePost<MonitorFormData, Monitor>();
-	const { patch, loading: isUpdating } = usePatch<MonitorFormData, Monitor>();
+	const { post, loading: isCreating } = usePost<MonitorRequest, Monitor>();
+	const { patch, loading: isUpdating } = usePatch<MonitorRequest, Monitor>();
 	const isSubmitting = isCreating || isUpdating;
 	// Delete functionality
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -393,7 +405,13 @@ const CreateMonitorPage = () => {
 		setIsDeleteDialogOpen(false);
 	};
 
-	const onSubmit = async (data: MonitorFormData) => {
+	const onSubmit = async (formData: MonitorFormData) => {
+		// An empty threshold (0) restores the default bands.
+		const data: MonitorRequest = {
+			...formData,
+			responseTimeMediumThreshold: formData.responseTimeMediumThreshold || null,
+			responseTimeSlowThreshold: formData.responseTimeSlowThreshold || null,
+		};
 		let result;
 		if (isEditMode && monitorId) {
 			result = await patch(`/monitors/${monitorId}`, data);
@@ -928,6 +946,31 @@ const CreateMonitorPage = () => {
 									min={1}
 									max={100}
 									valueLabelDisplay="auto"
+								/>
+							</Stack>
+						}
+					/>
+				)}
+
+				{showStep(1) && showsResponseTime(watchedType) && (
+					<ConfigBox
+						title={t("pages.createMonitor.form.responseTime.title")}
+						subtitle={t("pages.createMonitor.form.responseTime.description")}
+						rightContent={
+							<Stack spacing={theme.spacing(LAYOUT.MD)}>
+								<FormNumberField
+									name="responseTimeMediumThreshold"
+									fieldLabel={t("pages.createMonitor.form.responseTime.medium.label")}
+									placeholder={t(
+										"pages.createMonitor.form.responseTime.medium.placeholder"
+									)}
+								/>
+								<FormNumberField
+									name="responseTimeSlowThreshold"
+									fieldLabel={t("pages.createMonitor.form.responseTime.slow.label")}
+									placeholder={t(
+										"pages.createMonitor.form.responseTime.slow.placeholder"
+									)}
 								/>
 							</Stack>
 						}

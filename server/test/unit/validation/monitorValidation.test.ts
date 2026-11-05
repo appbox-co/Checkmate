@@ -861,3 +861,36 @@ describe("monitorValidation — push monitors", () => {
 		expect(pushParamValidation.safeParse({ token: "a".repeat(42) + "/" }).success).toBe(false);
 	});
 });
+
+describe("monitorValidation — response-time display thresholds", () => {
+	const base = { name: "Billing", type: "http", url: "https://billing.example.com/login" };
+
+	it("is optional and keeps the default bands when unset", () => {
+		const parsed = createMonitorBodyValidation.parse(base) as Record<string, unknown>;
+		expect(parsed.responseTimeMediumThreshold).toBeUndefined();
+		expect(parsed.responseTimeSlowThreshold).toBeUndefined();
+	});
+
+	it("accepts per-monitor limits and null to clear them on edit", () => {
+		const parsed = createMonitorBodyValidation.parse({ ...base, responseTimeMediumThreshold: 1000, responseTimeSlowThreshold: 2000 });
+		expect(parsed).toMatchObject({ responseTimeMediumThreshold: 1000, responseTimeSlowThreshold: 2000 });
+		expect(editMonitorBodyValidation.parse({ responseTimeMediumThreshold: null, responseTimeSlowThreshold: null })).toMatchObject({
+			responseTimeMediumThreshold: null,
+			responseTimeSlowThreshold: null,
+		});
+		expect(editMonitorBodyValidation.safeParse({ responseTimeSlowThreshold: 2000 }).success).toBe(true);
+	});
+
+	it("rejects a medium limit at or above the slow limit, and out-of-range values", () => {
+		expect(createMonitorBodyValidation.safeParse({ ...base, responseTimeMediumThreshold: 2000, responseTimeSlowThreshold: 2000 }).success).toBe(
+			false
+		);
+		expect(editMonitorBodyValidation.safeParse({ responseTimeMediumThreshold: 3000, responseTimeSlowThreshold: 2000 }).success).toBe(false);
+		expect(createMonitorBodyValidation.safeParse({ ...base, responseTimeSlowThreshold: 0 }).success).toBe(false);
+		expect(createMonitorBodyValidation.safeParse({ ...base, responseTimeSlowThreshold: 600001 }).success).toBe(false);
+		expect(createMonitorBodyValidation.safeParse({ ...base, responseTimeSlowThreshold: 1.5 }).success).toBe(false);
+		expect(
+			importMonitorsBodyValidation.safeParse({ monitors: [{ ...base, responseTimeMediumThreshold: 900, responseTimeSlowThreshold: 800 }] }).success
+		).toBe(false);
+	});
+});

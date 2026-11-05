@@ -1,4 +1,8 @@
 import {
+	STATUS_PAGE_RESPONSE_TIME_THRESHOLDS,
+	type ResponseTimeThresholds,
+} from "@/Utils/responseTimeThresholds";
+import {
 	ThemedChartTooltip,
 	ThemedDailyTooltip,
 } from "@/Pages/StatusPage/Status/themes/shared/ThemedChartTooltip";
@@ -52,12 +56,13 @@ const classifyDay = (bucket: DailyCheckBucket, upRatio: number): BarKind => {
 
 export const classifyResponseTime = (
 	status: boolean,
-	responseTime: number | undefined
+	responseTime: number | undefined,
+	thresholds: ResponseTimeThresholds = STATUS_PAGE_RESPONSE_TIME_THRESHOLDS
 ): Exclude<HeatCellKind, "empty"> => {
 	if (!status) return "down";
 	const rt = responseTime ?? 0;
-	if (rt > 500) return "slow";
-	if (rt > 250) return "med";
+	if (rt > thresholds.slow) return "slow";
+	if (rt > thresholds.medium) return "med";
 	return "fast";
 };
 
@@ -79,14 +84,17 @@ const padCells = (cells: ChartCell[], length: number): ChartCell[] => [
 	),
 ];
 
-export const checksToCells = (checks: CheckSnapshot[]): ChartCell[] => {
+export const checksToCells = (
+	checks: CheckSnapshot[],
+	thresholds?: ResponseTimeThresholds
+): ChartCell[] => {
 	const source = checks.slice(-MAX_RECENT_CHECKS);
 	const heights = computeBarHeights(source);
 	const cells = source.map(
 		(check, i): ChartCell => ({
 			key: check.id ?? String(i),
 			barKind: check.status ? "up" : "down",
-			heatKind: classifyResponseTime(check.status, check.responseTime),
+			heatKind: classifyResponseTime(check.status, check.responseTime, thresholds),
 			heightPct: heights[i] ?? MIN_HEIGHT_PCT,
 			responseTime: check.responseTime ?? 0,
 			tooltip: <ThemedChartTooltip check={check} />,
@@ -101,7 +109,8 @@ export const dailyBucketsToCells = (
 	buckets: DailyCheckBucket[],
 	days: number,
 	bucketTimezone: string,
-	t: TFunction
+	t: TFunction,
+	thresholds?: ResponseTimeThresholds
 ): ChartCell[] => {
 	const byDate = new Map(buckets.map((b) => [b.date, b]));
 	const heights = computeDayBarHeights(buckets);
@@ -123,7 +132,7 @@ export const dailyBucketsToCells = (
 			barKind,
 			heatKind:
 				barKind === "up"
-					? classifyResponseTime(true, bucket.avgResponseTime ?? 0)
+					? classifyResponseTime(true, bucket.avgResponseTime ?? 0, thresholds)
 					: barKind,
 			heightPct: heights.get(date) ?? MIN_HEIGHT_PCT,
 			responseTime: bucket.avgResponseTime ?? 0,

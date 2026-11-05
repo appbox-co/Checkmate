@@ -383,6 +383,21 @@ describe("StatusPageService", () => {
 			expect(monitors[0]).not.toHaveProperty("checks");
 		});
 
+		it("publishes per-monitor response-time display thresholds, and nothing when unset", async () => {
+			const { service, monitorsRepo } = createService();
+			(monitorsRepo.findByIds as jest.Mock).mockResolvedValue([
+				makeMonitor({ id: "mon-1", responseTimeMediumThreshold: 1000, responseTimeSlowThreshold: 2000 }),
+				makeMonitor({ id: "mon-2" }),
+			]);
+			const page = makeStatusPage({ isPublished: true, monitors: ["mon-1", "mon-2"] });
+
+			const { monitors } = await service.getPublicStatusPagePayload(page, undefined);
+
+			expect(monitors[0]).toMatchObject({ responseTimeMediumThreshold: 1000, responseTimeSlowThreshold: 2000 });
+			expect(monitors[1].responseTimeMediumThreshold).toBeUndefined();
+			expect(monitors[1].responseTimeSlowThreshold).toBeUndefined();
+		});
+
 		it("orders monitors to match the status page's monitor list", async () => {
 			const { service, monitorsRepo } = createService();
 			(monitorsRepo.findByIds as jest.Mock).mockResolvedValue([makeMonitor({ id: "mon-1" }), makeMonitor({ id: "mon-2" })]);

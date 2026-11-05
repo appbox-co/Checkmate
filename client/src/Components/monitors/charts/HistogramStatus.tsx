@@ -7,6 +7,7 @@ import { formatDateWithTz, formatMs } from "@/Utils/TimeUtils";
 import { useTranslation } from "react-i18next";
 import { ResponsiveContainer, BarChart, XAxis, Bar, Cell, Tooltip } from "recharts";
 import { getResponseTimeColor } from "@/Utils/MonitorUtils";
+import type { ResponseTimeThresholds } from "@/Utils/responseTimeThresholds";
 import type { GroupedCheck } from "@/Types/Check";
 import type { RootState } from "@/Types/state";
 
@@ -51,6 +52,7 @@ interface HistogramStatusProps {
 	icon: React.ReactNode;
 	checks?: GroupedCheck[];
 	range: string;
+	thresholds?: ResponseTimeThresholds;
 }
 
 export const HistogramStatus = ({
@@ -58,6 +60,7 @@ export const HistogramStatus = ({
 	icon,
 	checks = [],
 	range,
+	thresholds,
 }: HistogramStatusProps) => {
 	const { t } = useTranslation();
 	const theme = useTheme();
@@ -149,7 +152,10 @@ export const HistogramStatus = ({
 							background={{ fill: "transparent" }}
 						>
 							{checks?.map((groupedCheck, index) => {
-								const fillColor = getResponseTimeColor(groupedCheck.avgResponseTime);
+								const fillColor = getResponseTimeColor(
+									groupedCheck.avgResponseTime,
+									thresholds
+								);
 								return (
 									<Cell
 										key={groupedCheck.bucketDate || `check-${index}`}

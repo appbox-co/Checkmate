@@ -203,6 +203,8 @@ class MongoMonitorsRepository implements IMonitorsRepository {
 								geoCheckLocations: 1,
 								geoCheckState: 1,
 								geoCheckInterval: 1,
+								responseTimeMediumThreshold: 1,
+								responseTimeSlowThreshold: 1,
 								createdAt: 1,
 								updatedAt: 1,
 								recentChecks: {
@@ -552,6 +554,8 @@ class MongoMonitorsRepository implements IMonitorsRepository {
 			pushToken: doc.pushToken ?? undefined,
 			lastPushAt: doc.lastPushAt ?? undefined,
 			pushGracePeriod: doc.pushGracePeriod ?? undefined,
+			responseTimeMediumThreshold: doc.responseTimeMediumThreshold ?? undefined,
+			responseTimeSlowThreshold: doc.responseTimeSlowThreshold ?? undefined,
 			createdAt: toDateString(doc.createdAt),
 			updatedAt: toDateString(doc.updatedAt),
 			lastEvaluatedAt: doc.lastEvaluatedAt,

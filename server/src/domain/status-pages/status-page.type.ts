@@ -118,7 +118,10 @@ export interface PublicMonitorSelection {
 	monitorId?: string;
 	incidentPage?: number;
 }
-export type PublicStatusPageMonitor = Pick<Monitor, "id" | "name" | "type" | "status" | "uptimePercentage" | "interval"> & {
+export type PublicStatusPageMonitor = Pick<
+	Monitor,
+	"id" | "name" | "type" | "status" | "uptimePercentage" | "interval" | "responseTimeMediumThreshold" | "responseTimeSlowThreshold"
+> & {
 	locations?: PublicStatusLocation[];
 	recentChecks: (Omit<CheckSnapshot, "message" | "statusCode" | "responseTime"> & { responseTime?: number })[];
 	url?: string;

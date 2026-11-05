@@ -6,10 +6,19 @@ import { Cell, RadialBarChart, RadialBar, ResponsiveContainer } from "recharts";
 
 import { useTranslation } from "react-i18next";
 import { getResponseTimeColor } from "@/Utils/MonitorUtils";
+import type { ResponseTimeThresholds } from "@/Utils/responseTimeThresholds";
 import { useTheme } from "@mui/material/styles";
 import { formatMs } from "@/Utils/TimeUtils";
 
-export const RadialAvgResponse = ({ avg, max }: { avg: number; max: number }) => {
+export const RadialAvgResponse = ({
+	avg,
+	max,
+	thresholds,
+}: {
+	avg: number;
+	max: number;
+	thresholds?: ResponseTimeThresholds;
+}) => {
 	const { t } = useTranslation();
 	const theme = useTheme();
 	const chartData = [
@@ -17,7 +26,7 @@ export const RadialAvgResponse = ({ avg, max }: { avg: number; max: number }) =>
 		{ name: "avg", value: avg, color: "red" },
 	];
 
-	const palette = getResponseTimeColor(avg);
+	const palette = getResponseTimeColor(avg, thresholds);
 	const msg: Record<string, string> = {
 		success: "Excellent",
 		warning: "Average",

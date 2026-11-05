@@ -160,6 +160,25 @@ describe("MongoMonitorsRepository", () => {
 		});
 	});
 
+	describe("response-time display thresholds", () => {
+		it("stores them, includes them in the public projection and clears them with null", async () => {
+			const repo = new MongoMonitorsRepository();
+			const teamId = new mongoose.Types.ObjectId();
+			const monitor = await seedMonitor(teamId, "billing", []);
+			const id = monitor._id.toString();
+			expect((await repo.findById(id, teamId.toString())).responseTimeSlowThreshold).toBeUndefined();
+
+			await repo.updateById(id, teamId.toString(), { responseTimeMediumThreshold: 1000, responseTimeSlowThreshold: 2000 });
+			const [publicMonitor] = await repo.findByIds([id], { publicStatus: true });
+			expect(publicMonitor).toMatchObject({ responseTimeMediumThreshold: 1000, responseTimeSlowThreshold: 2000 });
+
+			await expect(repo.updateById(id, teamId.toString(), { responseTimeSlowThreshold: 0 })).rejects.toThrow();
+			const cleared = await repo.updateById(id, teamId.toString(), { responseTimeMediumThreshold: null, responseTimeSlowThreshold: null });
+			expect(cleared.responseTimeMediumThreshold).toBeUndefined();
+			expect(cleared.responseTimeSlowThreshold).toBeUndefined();
+		});
+	});
+
 	describe("docker tls key access", () => {
 		const seedDockerMonitor = (overrides: Record<string, unknown> = {}) =>
 			MonitorModel.create({

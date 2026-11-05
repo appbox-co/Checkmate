@@ -1,3 +1,4 @@
+import { resolveResponseTimeThresholds } from "@/Utils/responseTimeThresholds";
 import { BasePage } from "@/Components/design-elements";
 import { HeaderTimeRange } from "@/Components/common";
 import Stack from "@mui/material/Stack";
@@ -79,6 +80,7 @@ const UptimeDetailsPage = () => {
 	const monitorData = monitorDetailsData?.monitorData;
 
 	const monitor = monitorData?.monitor;
+	const responseTimeThresholds = resolveResponseTimeThresholds(monitor);
 	const monitorStats = monitorDetailsData?.monitorStats ?? null;
 
 	// Certificate fetch - only for HTTP monitors
@@ -240,16 +242,19 @@ const UptimeDetailsPage = () => {
 					icon={<TrendingUp />}
 					checks={monitorData?.groupedUpChecks ?? []}
 					range={dateRange}
+					thresholds={responseTimeThresholds}
 				/>
 				<HistogramStatus
 					title={t("common.charts.labels.downtime")}
 					icon={<AlertTriangle />}
 					checks={monitorData?.groupedDownChecks ?? []}
 					range={dateRange}
+					thresholds={responseTimeThresholds}
 				/>
 				<RadialAvgResponse
 					avg={monitorStats?.avgResponseTime || 0}
-					max={500}
+					max={responseTimeThresholds?.slow ?? 500}
+					thresholds={responseTimeThresholds}
 				/>
 			</Stack>
 			<HistogramDetails

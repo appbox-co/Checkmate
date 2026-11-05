@@ -1,6 +1,7 @@
 import type { MonitorStatus, MonitorType } from "@/Types/Monitor";
 import type { PaletteKey } from "@/Utils/Theme/Theme";
 import type { ValueType } from "@/Components/design-elements/StatusLabel";
+import type { ResponseTimeThresholds } from "@/Utils/responseTimeThresholds";
 import {
 	DockerLogStreams,
 	type DockerContainerMount,
@@ -83,7 +84,16 @@ export const getStatusColor = (status: MonitorStatus, theme: any): string => {
 	return theme.palette.warning.light;
 };
 
-export const getResponseTimeColor = (responseTime: number): PaletteKey => {
+export const getResponseTimeColor = (
+	responseTime: number,
+	thresholds?: ResponseTimeThresholds
+): PaletteKey => {
+	// Per-monitor bands use the same boundaries as the public status page.
+	if (thresholds) {
+		if (responseTime <= thresholds.medium) return "success";
+		if (responseTime <= thresholds.slow) return "warning";
+		return "error";
+	}
 	if (responseTime < 200) {
 		return "success";
 	} else if (responseTime < 300) {

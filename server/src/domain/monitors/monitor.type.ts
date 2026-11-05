@@ -96,6 +96,10 @@ export const DefaultPushGracePeriod = 300000;
 // Stored in monitor.url, which is shown in lists and notifications; the token is never placed there.
 export const PUSH_MONITOR_URL = "push";
 
+// Optional per-monitor response-time display bands (ms). Display only: response
+// time never affects status, incidents or alerts. Unset keeps the client defaults.
+export const MAX_RESPONSE_TIME_THRESHOLD = 600000;
+
 export interface Monitor {
 	id: string;
 	userId: string;
@@ -155,6 +159,8 @@ export interface Monitor {
 	pushToken?: string;
 	lastPushAt?: number; // epoch ms
 	pushGracePeriod?: number; // ms
+	responseTimeMediumThreshold?: number | null; // ms; above this a response is "medium"; null clears
+	responseTimeSlowThreshold?: number | null; // ms; above this a response is "slow"; null clears
 	recentChecks: CheckSnapshot[];
 	createdAt: string;
 	updatedAt: string;

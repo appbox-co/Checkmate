@@ -23,6 +23,8 @@ const getBaseDefaults = (data?: Monitor | null) => ({
 	tags: data?.tags || [],
 	statusWindowSize: data?.statusWindowSize || 5,
 	statusWindowThreshold: data?.statusWindowThreshold || 60,
+	responseTimeMediumThreshold: data?.responseTimeMediumThreshold ?? 0,
+	responseTimeSlowThreshold: data?.responseTimeSlowThreshold ?? 0,
 });
 
 // Geo-check defaults — only http and ping support geo checks.

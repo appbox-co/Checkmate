@@ -102,6 +102,8 @@ export class StatusPageService implements IStatusPageService {
 			type: monitor.type,
 			status: monitor.status,
 			interval: monitor.interval,
+			responseTimeMediumThreshold: monitor.responseTimeMediumThreshold,
+			responseTimeSlowThreshold: monitor.responseTimeSlowThreshold,
 			uptimePercentage: totalChecks ? upChecks / totalChecks : undefined,
 			recentChecks: monitor.recentChecks.map((check) => {
 				const { message: _message, statusCode: _statusCode, cpu, memory, disk, host, ...sample } = check;

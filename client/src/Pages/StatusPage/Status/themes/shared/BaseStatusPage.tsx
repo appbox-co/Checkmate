@@ -1,3 +1,4 @@
+import { resolveResponseTimeThresholds } from "@/Utils/responseTimeThresholds";
 import { StatusPageCommunications } from "../../Components/StatusPageCommunications";
 import type { PublicMaintenanceWindow } from "@/Types/StatusPage";
 import { Link } from "react-router-dom";
@@ -286,14 +287,16 @@ export const BaseStatusPage = ({
 							? "—"
 							: formatPercentage(monitor.uptimePercentage);
 
+					const thresholds = resolveResponseTimeThresholds(monitor);
 					const cells =
 						range === "latest"
-							? checksToCells(monitor.recentChecks ?? [])
+							? checksToCells(monitor.recentChecks ?? [], thresholds)
 							: dailyBucketsToCells(
 									monitor.dailyChecks ?? [],
 									STATUS_PAGE_RANGE_DAYS[range],
 									bucketTimezone,
-									t
+									t,
+									thresholds
 								);
 
 					return (

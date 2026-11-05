@@ -886,6 +886,18 @@
 					"graceTitle": "Grace period",
 					"graceDescription": "The monitor goes down when no push arrives for this long. Check frequency controls how often Checkmate evaluates it.",
 					"graceLabel": "Alert after no push for"
+				},
+				"responseTime": {
+					"title": "Response time bands",
+					"description": "Optional. Sets when this monitor's response times show as medium or slow on charts and status pages. Leave blank for the defaults: medium above 250 ms and slow above 500 ms on status pages. If you set only one, the other keeps a 1:2 ratio. Response time never affects up/down status or alerts.",
+					"medium": {
+						"label": "Medium above (ms)",
+						"placeholder": "Default"
+					},
+					"slow": {
+						"label": "Slow above (ms)",
+						"placeholder": "Default"
+					}
 				}
 			}
 		},

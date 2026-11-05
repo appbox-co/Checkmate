@@ -20,6 +20,13 @@ export const monitorStepRegistry = z.registry<{ step: number }>();
 // URL schema with custom error message
 const urlSchema = z.url({ message: "Please enter a valid URL" });
 
+const responseTimeThresholdField = z
+	.number({ message: "Enter a whole number of milliseconds" })
+	.int("Enter a whole number of milliseconds")
+	.min(0, "Threshold cannot be negative")
+	.max(600000, "Threshold must be at most 600000 ms")
+	.register(monitorStepRegistry, { step: 1 });
+
 // Common base schema for all monitor types
 const baseSchema = z.object({
 	name: z
@@ -46,6 +53,9 @@ const baseSchema = z.object({
 		.min(1, "Incident percentage must be at least 1")
 		.max(100, "Incident percentage must be at most 100")
 		.register(monitorStepRegistry, { step: 1 }),
+	// 0 (an empty field) uses the default display bands; submitted as null.
+	responseTimeMediumThreshold: responseTimeThresholdField,
+	responseTimeSlowThreshold: responseTimeThresholdField,
 });
 
 // Geo-distributed check fields. Only http and ping support geo checks
@@ -255,6 +265,15 @@ const monitorSchemaUnion = z.discriminatedUnion("type", [
 // Mirrors the server's refineProxySelection and refineDockerTls
 // (monitorValidation.ts). PEM contents are only parsed on the server.
 export const monitorSchema = monitorSchemaUnion.superRefine((data, ctx) => {
+	const { responseTimeMediumThreshold: medium, responseTimeSlowThreshold: slow } = data;
+	if (medium > 0 && slow > 0 && medium >= slow) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["responseTimeSlowThreshold"],
+			message: "Slow threshold must be greater than the medium threshold",
+		});
+	}
+
 	if (data.type === "http" && data.proxyMode === "custom" && !data.proxyId) {
 		ctx.addIssue({
 			code: "custom",

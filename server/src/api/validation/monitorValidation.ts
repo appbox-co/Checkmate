@@ -14,6 +14,7 @@ import {
 	PageSpeedStrategies,
 	ProxyModes,
 	PushGracePeriods,
+	MAX_RESPONSE_TIME_THRESHOLD,
 } from "@/domain/monitors/monitor.type.js";
 import { DateRanges, SortOrders } from "@/types/query.js";
 import { DockerContainerStates, DockerHealthStatuses, DockerLogStreams, DockerPortProtocols } from "@/domain/docker/docker.type.js";
@@ -24,6 +25,8 @@ import { keyMatchesCertificate, parseCertificates, parsePrivateKey } from "@/uti
 
 const notificationReminderInterval = z.literal(NotificationReminderIntervals);
 const pushGracePeriod = z.literal(PushGracePeriods);
+// null clears a threshold on edit, restoring the default display bands.
+const responseTimeThreshold = z.number().int().min(1).max(MAX_RESPONSE_TIME_THRESHOLD).nullable();
 
 const httpStatusCode = z.number().refine((code) => HttpStatusCodeSet.has(code), { message: "Must be a valid HTTP status code" });
 
@@ -89,6 +92,16 @@ const refineDnsHostname = (body: { type?: string; url?: string }, ctx: z.Refinem
 const refineUrlRequired = (body: { type?: string; url?: string }, ctx: z.RefinementCtx) => {
 	if (body.type !== "push" && !body.url) {
 		ctx.addIssue({ code: "custom", path: ["url"], message: "URL is required" });
+	}
+};
+
+const refineResponseTimeThresholds = (
+	body: { responseTimeMediumThreshold?: number | null; responseTimeSlowThreshold?: number | null },
+	ctx: z.RefinementCtx
+) => {
+	const { responseTimeMediumThreshold: medium, responseTimeSlowThreshold: slow } = body;
+	if (medium != null && slow != null && medium >= slow) {
+		ctx.addIssue({ code: "custom", path: ["responseTimeSlowThreshold"], message: "Slow threshold must be greater than the medium threshold" });
 	}
 };
 
@@ -234,6 +247,8 @@ export const createMonitorBodyValidation = z
 		dnsServer: dnsServerValidation.optional(),
 		dnsRecordType: z.enum(DnsRecordTypes).optional(),
 		pushGracePeriod: pushGracePeriod.optional(),
+		responseTimeMediumThreshold: responseTimeThreshold.optional(),
+		responseTimeSlowThreshold: responseTimeThreshold.optional(),
 	})
 	.superRefine(refineUrlRequired)
 	.superRefine(refineDnsHostname)
@@ -242,6 +257,7 @@ export const createMonitorBodyValidation = z
 	.superRefine(refineRegexPattern)
 	.superRefine(refineProxySelection)
 	.superRefine(refineDockerUrl)
+	.superRefine(refineResponseTimeThresholds)
 	.superRefine(refineDockerTls("create"));
 
 export const editMonitorBodyValidation = z
@@ -286,6 +302,8 @@ export const editMonitorBodyValidation = z
 		dnsServer: dnsServerValidation.optional(),
 		dnsRecordType: z.enum(DnsRecordTypes).optional(),
 		pushGracePeriod: pushGracePeriod.optional(),
+		responseTimeMediumThreshold: responseTimeThreshold.optional(),
+		responseTimeSlowThreshold: responseTimeThreshold.optional(),
 	})
 	.superRefine(refineDnsHostname)
 	.superRefine(refineStrategyType)
@@ -293,6 +311,7 @@ export const editMonitorBodyValidation = z
 	.superRefine(refineRegexPattern)
 	.superRefine(refineProxySelection)
 	.superRefine(refineDockerUrl)
+	.superRefine(refineResponseTimeThresholds)
 	.superRefine(refineDockerTls("edit"));
 
 export const regeneratePushTokenParamValidation = z.object({
@@ -374,6 +393,8 @@ const importedMonitorSchema = z
 		dnsServer: dnsServerValidation.optional(),
 		dnsRecordType: z.enum(DnsRecordTypes).optional(),
 		pushGracePeriod: pushGracePeriod.optional(),
+		responseTimeMediumThreshold: responseTimeThreshold.optional(),
+		responseTimeSlowThreshold: responseTimeThreshold.optional(),
 		createdAt: z.string().optional(),
 		updatedAt: z.string().optional(),
 	})
@@ -383,7 +404,8 @@ const importedMonitorSchema = z
 	.superRefine(refineHeadMatching)
 	.superRefine(refineRegexPattern)
 	.superRefine(refineProxySelection)
-	.superRefine(refineDockerUrl);
+	.superRefine(refineDockerUrl)
+	.superRefine(refineResponseTimeThresholds);
 
 export const importMonitorsBodyValidation = z.object({
 	monitors: z.array(importedMonitorSchema).min(1, "At least one monitor is required"),
@@ -474,6 +496,8 @@ export const monitorResponseSchema = z
 		pushToken: z.string().optional(),
 		lastPushAt: z.number().optional(),
 		pushGracePeriod: pushGracePeriod.optional(),
+		responseTimeMediumThreshold: responseTimeThreshold.optional(),
+		responseTimeSlowThreshold: responseTimeThreshold.optional(),
 		teamId: z.string(),
 		userId: z.string(),
 		createdAt: z.string(),

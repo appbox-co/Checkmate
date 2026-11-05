@@ -10,6 +10,7 @@ import {
 	HttpMethods,
 	ProxyModes,
 	PushGracePeriods,
+	MAX_RESPONSE_TIME_THRESHOLD,
 } from "@/domain/monitors/monitor.type.js";
 import type {
 	CheckAudits,
@@ -355,6 +356,8 @@ const MonitorSchema = new Schema<MonitorDocument>(
 			enum: PushGracePeriods,
 			default: undefined,
 		},
+		responseTimeMediumThreshold: { type: Number, min: 1, max: MAX_RESPONSE_TIME_THRESHOLD, default: undefined },
+		responseTimeSlowThreshold: { type: Number, min: 1, max: MAX_RESPONSE_TIME_THRESHOLD, default: undefined },
 		recentChecks: {
 			type: [checkSnapshotSchema],
 			default: [],

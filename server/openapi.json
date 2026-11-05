@@ -601,6 +601,18 @@
 						"type": "number",
 						"enum": [60000]
 					},
+					"responseTimeMediumThreshold": {
+						"type": "integer",
+						"nullable": true,
+						"minimum": 1,
+						"maximum": 600000
+					},
+					"responseTimeSlowThreshold": {
+						"type": "integer",
+						"nullable": true,
+						"minimum": 1,
+						"maximum": 600000
+					},
 					"teamId": {
 						"type": "string"
 					},
@@ -949,6 +961,18 @@
 									"pushGracePeriod": {
 										"type": "number",
 										"enum": [60000]
+									},
+									"responseTimeMediumThreshold": {
+										"type": "integer",
+										"nullable": true,
+										"minimum": 1,
+										"maximum": 600000
+									},
+									"responseTimeSlowThreshold": {
+										"type": "integer",
+										"nullable": true,
+										"minimum": 1,
+										"maximum": 600000
 									},
 									"teamId": {
 										"type": "string"
@@ -7771,6 +7795,18 @@
 															"type": "number",
 															"enum": [60000]
 														},
+														"responseTimeMediumThreshold": {
+															"type": "integer",
+															"nullable": true,
+															"minimum": 1,
+															"maximum": 600000
+														},
+														"responseTimeSlowThreshold": {
+															"type": "integer",
+															"nullable": true,
+															"minimum": 1,
+															"maximum": 600000
+														},
 														"teamId": {
 															"type": "string"
 														},
@@ -8479,6 +8515,18 @@
 														"pushGracePeriod": {
 															"type": "number",
 															"enum": [60000]
+														},
+														"responseTimeMediumThreshold": {
+															"type": "integer",
+															"nullable": true,
+															"minimum": 1,
+															"maximum": 600000
+														},
+														"responseTimeSlowThreshold": {
+															"type": "integer",
+															"nullable": true,
+															"minimum": 1,
+															"maximum": 600000
 														},
 														"teamId": {
 															"type": "string"
@@ -10427,6 +10475,18 @@
 									"pushGracePeriod": {
 										"type": "number",
 										"enum": [60000]
+									},
+									"responseTimeMediumThreshold": {
+										"type": "integer",
+										"nullable": true,
+										"minimum": 1,
+										"maximum": 600000
+									},
+									"responseTimeSlowThreshold": {
+										"type": "integer",
+										"nullable": true,
+										"minimum": 1,
+										"maximum": 600000
 									}
 								},
 								"required": ["name", "type"]
@@ -11128,6 +11188,18 @@
 													"type": "number",
 													"enum": [60000]
 												},
+												"responseTimeMediumThreshold": {
+													"type": "integer",
+													"nullable": true,
+													"minimum": 1,
+													"maximum": 600000
+												},
+												"responseTimeSlowThreshold": {
+													"type": "integer",
+													"nullable": true,
+													"minimum": 1,
+													"maximum": 600000
+												},
 												"createdAt": {
 													"type": "string"
 												},
@@ -11735,6 +11807,18 @@
 									"pushGracePeriod": {
 										"type": "number",
 										"enum": [60000]
+									},
+									"responseTimeMediumThreshold": {
+										"type": "integer",
+										"nullable": true,
+										"minimum": 1,
+										"maximum": 600000
+									},
+									"responseTimeSlowThreshold": {
+										"type": "integer",
+										"nullable": true,
+										"minimum": 1,
+										"maximum": 600000
 									}
 								}
 							}

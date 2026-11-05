@@ -184,6 +184,8 @@ export interface Monitor {
 	pushToken?: string;
 	lastPushAt?: number;
 	pushGracePeriod?: PushGracePeriod;
+	responseTimeMediumThreshold?: number | null;
+	responseTimeSlowThreshold?: number | null;
 	recentChecks: CheckSnapshot[];
 	dailyChecks?: DailyCheckBucket[];
 	createdAt: string;
