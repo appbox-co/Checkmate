@@ -894,3 +894,10 @@ describe("monitorValidation — response-time display thresholds", () => {
 		).toBe(false);
 	});
 });
+
+describe("monitorValidation — 90-minute push grace period", () => {
+	it("accepts a 90-minute grace period for hourly pushes", () => {
+		expect(createMonitorBodyValidation.parse({ name: "NAS dumps", type: "push", pushGracePeriod: 5400000 }).pushGracePeriod).toBe(5400000);
+		expect(editMonitorBodyValidation.parse({ pushGracePeriod: 5400000 }).pushGracePeriod).toBe(5400000);
+	});
+});

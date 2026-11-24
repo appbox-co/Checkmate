@@ -91,7 +91,7 @@ export const MAX_RECENT_CHECKS = 50;
 
 // Push (heartbeat) monitors: the monitored system calls /api/v1/push/<token>.
 // The check is down once no push has arrived within the grace period.
-export const PushGracePeriods = [60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 7200000, 21600000, 43200000, 86400000] as const;
+export const PushGracePeriods = [60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 5400000, 7200000, 21600000, 43200000, 86400000] as const;
 export const DefaultPushGracePeriod = 300000;
 // Stored in monitor.url, which is shown in lists and notifications; the token is never placed there.
 export const PUSH_MONITOR_URL = "push";

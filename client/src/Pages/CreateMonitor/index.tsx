@@ -553,7 +553,7 @@ const CreateMonitorPage = () => {
 			PushGracePeriodOptions.map((value) => ({
 				value,
 				label:
-					value >= 3600000
+					value % 3600000 === 0
 						? t("pages.createMonitor.form.notifications.reminders.hours", {
 								count: value / 3600000,
 							})

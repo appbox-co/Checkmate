@@ -78,8 +78,8 @@ export const MonitorIntervalOptions = [
 
 // Mirrors PushGracePeriods in server/src/domain/monitors/monitor.type.ts.
 export const PushGracePeriodOptions = [
-	60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 7200000, 21600000, 43200000,
-	86400000,
+	60000, 120000, 300000, 600000, 900000, 1800000, 3600000, 5400000, 7200000, 21600000,
+	43200000, 86400000,
 ] as const;
 export type PushGracePeriod = (typeof PushGracePeriodOptions)[number];
 export const DefaultPushGracePeriod: PushGracePeriod = 300000;
